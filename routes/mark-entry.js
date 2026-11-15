@@ -96,16 +96,109 @@ router.post('/tests/:id/resume', (req, res) => {
   res.json({ message: 'Mark entry resumed.' });
 });
 
-// The Finish button persists completion, so interrupted sessions remain
-// visibly resumable in the Weekly Tests register.
+// Show how many students in the active class roster still have no result.
+// This allows the UI to warn the administrator before finishing the session.
+router.get('/tests/:id/finish-preview', (req, res) => {
+  const yearId = resolveYearId(req.query.academic_year_id);
+  const test = db.prepare(`
+    SELECT * FROM weekly_tests WHERE id = ? AND academic_year_id = ?
+  `).get(req.params.id, yearId);
+  if (!test) return res.status(404).json({ error: 'Weekly Test not found in the selected academic year.' });
+
+  const summary = db.prepare(`
+    SELECT
+      COUNT(*) AS total_students,
+      SUM(CASE WHEN m.id IS NOT NULL AND COALESCE(m.is_absent, 0) = 0 AND m.marks IS NOT NULL THEN 1 ELSE 0 END) AS present_count,
+      SUM(CASE WHEN m.id IS NOT NULL AND m.is_absent = 1 THEN 1 ELSE 0 END) AS absent_count,
+      SUM(CASE WHEN m.id IS NULL OR (COALESCE(m.is_absent, 0) = 0 AND m.marks IS NULL) THEN 1 ELSE 0 END) AS unentered_count
+    FROM students s
+    LEFT JOIN weekly_test_marks m
+      ON m.weekly_test_id = ? AND m.admission_no = s.admission_no
+    WHERE s.academic_year_id = ? AND s.class = ?
+      AND COALESCE(s.status, 'Active') <> 'Withdrawn'
+  `).get(test.id, test.academic_year_id, test.class);
+
+  res.json({
+    test_id: test.id,
+    total_students: Number(summary.total_students || 0),
+    present_count: Number(summary.present_count || 0),
+    absent_count: Number(summary.absent_count || 0),
+    unentered_count: Number(summary.unentered_count || 0),
+  });
+});
+
+// Finish is the final attendance decision for this Weekly Test. Every active,
+// non-withdrawn student in the test's class/year without a saved mark is stored
+// as Absent (NULL marks + is_absent=1). Existing marks and explicit absences
+// are preserved. The operation is atomic so a partial class cannot be finalized.
 router.post('/tests/:id/finish', (req, res) => {
   const yearId = resolveYearId(req.body.academic_year_id);
-  const result = db.prepare(`
-    UPDATE weekly_tests SET entry_status = 'completed'
-    WHERE id = ? AND academic_year_id = ?
-  `).run(req.params.id, yearId);
-  if (!result.changes) return res.status(404).json({ error: 'Weekly Test not found in the selected academic year.' });
-  res.json({ message: 'Mark entry marked as finished.' });
+  try {
+    const result = db.transaction(() => {
+      const test = db.prepare(`
+        SELECT * FROM weekly_tests WHERE id = ? AND academic_year_id = ?
+      `).get(req.params.id, yearId);
+      if (!test) return null;
+
+      // Repair any blank placeholder rows as absent, but only for students who
+      // are still part of this test's active class roster.
+      const updateBlank = db.prepare(`
+        UPDATE weekly_test_marks
+        SET is_absent = 1, marks = NULL
+        WHERE weekly_test_id = ? AND is_absent = 0 AND marks IS NULL
+          AND admission_no IN (
+            SELECT admission_no FROM students
+            WHERE academic_year_id = ? AND class = ?
+              AND COALESCE(status, 'Active') <> 'Withdrawn'
+          )
+      `).run(test.id, test.academic_year_id, test.class);
+
+      // Add an explicit absent result for every active student not yet present
+      // in the mark table. INSERT OR IGNORE protects the unique test/student key.
+      const insertMissing = db.prepare(`
+        INSERT OR IGNORE INTO weekly_test_marks (weekly_test_id, admission_no, marks, is_absent)
+        SELECT ?, s.admission_no, NULL, 1
+        FROM students s
+        WHERE s.academic_year_id = ? AND s.class = ?
+          AND COALESCE(s.status, 'Active') <> 'Withdrawn'
+      `).run(test.id, test.academic_year_id, test.class);
+
+      db.prepare(`
+        UPDATE weekly_tests SET entry_status = 'completed'
+        WHERE id = ? AND academic_year_id = ?
+      `).run(test.id, yearId);
+
+      const summary = db.prepare(`
+        SELECT
+          COUNT(*) AS total_students,
+          SUM(CASE WHEN m.is_absent = 0 AND m.marks IS NOT NULL THEN 1 ELSE 0 END) AS present_count,
+          SUM(CASE WHEN m.is_absent = 1 THEN 1 ELSE 0 END) AS absent_count
+        FROM students s
+        LEFT JOIN weekly_test_marks m
+          ON m.weekly_test_id = ? AND m.admission_no = s.admission_no
+        WHERE s.academic_year_id = ? AND s.class = ?
+          AND COALESCE(s.status, 'Active') <> 'Withdrawn'
+      `).get(test.id, test.academic_year_id, test.class);
+
+      return {
+        test,
+        newly_marked_absent: Number(updateBlank.changes || 0) + Number(insertMissing.changes || 0),
+        total_students: Number(summary.total_students || 0),
+        present_count: Number(summary.present_count || 0),
+        absent_count: Number(summary.absent_count || 0),
+      };
+    })();
+
+    if (!result) return res.status(404).json({ error: 'Weekly Test not found in the selected academic year.' });
+    res.json({
+      message: 'Mark entry finished. Students without a mark have been marked Absent.',
+      ...result,
+      marks: readMarkList(result.test.id),
+    });
+  } catch (err) {
+    console.error('Could not finish mark-entry session:', err);
+    res.status(500).json({ error: 'Could not finish this mark-entry session or mark missing students Absent.' });
+  }
 });
 
 // Find a student by admission-number prefix within the selected class/year.
@@ -234,7 +327,11 @@ router.get('/export', (req, res) => {
   const ws = XLSX.utils.aoa_to_sheet([
     ["Students' Home — Marklist"],
     ['Date', meta.test_date], ['Class', meta.class], ['Subject', meta.subject], ['Topic', meta.topic],
-    ['Maximum Marks', test.max_marks], ['Students Entered', marks.length], [], header, ...rows,
+    ['Maximum Marks', test.max_marks],
+    ['Students Recorded', marks.length],
+    ['Present', marks.filter(m => !m.is_absent && m.marks !== null).length],
+    ['Absent', marks.filter(m => !!m.is_absent).length],
+    [], header, ...rows,
   ]);
   ws['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 9 }, { wch: 10 }, { wch: 13 }, { wch: 18 }, { wch: 24 }, { wch: 10 }, { wch: 14 }, { wch: 12 }];
   ws['!autofilter'] = { ref: `A9:J${9 + rows.length}` };

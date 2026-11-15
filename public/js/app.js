@@ -1645,6 +1645,7 @@ async function renderMarkEntry(resumeTestId = null) {
   let currentTestId = null;
   let searchSequence = 0;
   let saving = false;
+  let finishing = false;
 
   dateEl.value = todayStr();
   const updateWorkflowStage = stage => workflowSteps.forEach((step, index) => {
@@ -1681,7 +1682,7 @@ async function renderMarkEntry(resumeTestId = null) {
   }
 
   function renderEnteredMarks() {
-    $('#me-mark-count').textContent = `${enteredMarks.length} student(s) saved to Weekly Tests`;
+    $('#me-mark-count').textContent = `${enteredMarks.length} student result(s) saved to Weekly Tests`;
     exportBtn.disabled = !enteredMarks.length;
     $('#me-marklist').innerHTML = enteredMarks.length ? `
       <table>
@@ -1800,7 +1801,7 @@ async function renderMarkEntry(resumeTestId = null) {
         : 'Type the Admission Number and press Enter. Then enter the mark and press Enter.';
       $('#me-entry-card').style.opacity = '1';
       sessionStatus.textContent = data.test_id
-        ? `Weekly Test loaded · ${enteredMarks.length} mark(s) already saved. You can continue entering marks.`
+        ? `Weekly Test loaded · ${enteredMarks.length} result(s) already saved. You can continue entering marks.`
         : 'Ready. This will be added directly to the Weekly Tests register when the first mark is saved.';
       matchesEl.innerHTML = '';
       admissionEl.value = '';
@@ -1812,38 +1813,63 @@ async function renderMarkEntry(resumeTestId = null) {
   }
 
   async function finishEntry() {
-    if (!activeSession) return;
+    if (!activeSession || finishing) return;
     if (saving) return;
     if (selectedStudent || admissionEl.value.trim()) {
       toast('Save or clear the current student entry before finishing.', true);
       if (selectedStudent) markEl.focus(); else admissionEl.focus();
       return;
     }
-    const confirmed = confirm(`Finish mark entry for Class ${classEl.value} — ${subjectEl.value.trim()} — ${topicEl.value.trim()}?\n\n${enteredMarks.length} student mark(s) are saved in Weekly Tests.`);
-    if (!confirmed) return;
-    if (currentTestId) {
-      try {
-        await api(`/mark-entry/tests/${currentTestId}/finish`, {
-          method: 'POST',
-          body: JSON.stringify({ academic_year_id: currentYearId }),
-        });
-      } catch (err) {
-        toast(`Could not finish this mark-entry session: ${err.message}`, true);
+    if (!currentTestId) {
+      toast('This mark-entry session has no Weekly Test record. Start / Resume it again.', true);
+      return;
+    }
+
+    finishing = true;
+    finishBtn.disabled = true;
+    try {
+      const preview = await api(`/mark-entry/tests/${currentTestId}/finish-preview` + yearQS());
+      const finishDetails = [
+        `Finish mark entry for Class ${classEl.value} — ${subjectEl.value.trim()} — ${topicEl.value.trim()}?`,
+        '',
+        `Active students in this class: ${preview.total_students}.`,
+        `Marks already entered: ${preview.present_count}.`,
+        `Already marked Absent: ${preview.absent_count}.`,
+        preview.unentered_count
+          ? `${preview.unentered_count} student(s) without a mark will be marked ABSENT.`
+          : 'Every active student already has a saved result.',
+        '',
+        'This will finalize the marklist. Existing marks will not be changed.',
+      ].join('\n');
+      if (!confirm(finishDetails)) {
+        finishBtn.disabled = false;
         return;
       }
+
+      const result = await api(`/mark-entry/tests/${currentTestId}/finish`, {
+        method: 'POST',
+        body: JSON.stringify({ academic_year_id: currentYearId }),
+      });
+      enteredMarks = result.marks || enteredMarks;
+      renderEnteredMarks();
+      activeSession = false;
+      updateWorkflowStage(3);
+      searchSequence++;
+      admissionEl.disabled = true;
+      markEl.disabled = true;
+      saveBtn.disabled = true;
+      clearBtn.disabled = true;
+      finishBtn.disabled = true;
+      $('#me-entry-card').style.opacity = '.65';
+      sessionStatus.textContent = `Finished · ${result.present_count} present · ${result.absent_count} absent · ${result.total_students} students in the class.`;
+      saveStatus.textContent = 'Entry session finished. Export the marklist or reopen the test to make corrections.';
+      toast(`Mark entry finished. ${result.newly_marked_absent} student(s) without marks were marked Absent.`);
+    } catch (err) {
+      finishBtn.disabled = false;
+      toast(`Could not finish this mark-entry session: ${err.message}`, true);
+    } finally {
+      finishing = false;
     }
-    activeSession = false;
-    updateWorkflowStage(3);
-    searchSequence++;
-    admissionEl.disabled = true;
-    markEl.disabled = true;
-    saveBtn.disabled = true;
-    clearBtn.disabled = true;
-    finishBtn.disabled = true;
-    $('#me-entry-card').style.opacity = '.65';
-    sessionStatus.textContent = `Mark entry finished · ${enteredMarks.length} student mark(s) saved to Weekly Tests.`;
-    saveStatus.textContent = 'Entry session finished. Export the marklist or start/resume to continue.';
-    toast('Mark entry finished. All saved marks are in Weekly Tests.');
   }
 
   async function saveMark() {

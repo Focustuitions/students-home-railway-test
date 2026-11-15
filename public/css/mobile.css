@@ -24,27 +24,40 @@ button, [role="button"] { touch-action: manipulation; }
   body { background: #f4f6fa; }
   .app { display: block !important; min-height: 100vh; }
   .mobile-appbar {
-    position: sticky;
-    top: 0;
-    z-index: 60;
+    /* Keep the app header in normal document flow: it must not hover over
+       page content while the user scrolls. */
+    position: relative;
+    top: auto;
+    z-index: 20;
     display: flex;
     align-items: center;
     gap: 11px;
+    width: 100%;
+    height: 60px;
     min-height: 60px;
+    max-height: 60px;
+    box-sizing: border-box;
     padding: 8px 14px;
-    padding-top: max(8px, env(safe-area-inset-top));
     background: #182238;
     color: #fff;
-    box-shadow: 0 4px 16px rgba(13,27,48,.16);
+    box-shadow: none;
+    overflow: hidden;
   }
   .mobile-nav-toggle {
     display: inline-flex;
+    flex: 0 0 46px;
     align-items: center;
     justify-content: center;
     gap: 7px;
+    width: 46px;
+    height: 44px;
     min-width: 46px;
     min-height: 44px;
+    max-height: 44px;
+    margin: 0;
     padding: 0 10px;
+    box-sizing: border-box;
+    line-height: 1;
     border: 1px solid rgba(255,255,255,.22);
     border-radius: 9px;
     background: rgba(255,255,255,.08);
@@ -74,7 +87,9 @@ button, [role="button"] { touch-action: manipulation; }
     will-change: transform;
   }
   .spine.is-open { transform: translateX(0); }
-  .spine::after { width: 4px; }
+  /* The sidebar's desktop gradient edge can peek out beside the closed
+     off-canvas drawer on some mobile browsers. Remove it on small screens. */
+  .spine::after { display: none; }
   .spine-brand { padding: 0 18px 17px; }
   .spine-year { padding: 0 18px 14px; }
   .tabs { padding: 6px 10px; overflow: visible; }
@@ -91,8 +106,8 @@ button, [role="button"] { touch-action: manipulation; }
 }
 
 @media (max-width: 600px) {
-  .mobile-appbar { min-height: 56px; gap: 8px; padding-left: 10px; padding-right: 10px; }
-  .mobile-nav-toggle { min-width: 42px; width: 42px; padding: 0; }
+  .mobile-appbar { height: 56px; min-height: 56px; max-height: 56px; gap: 8px; padding: 7px 10px; }
+  .mobile-nav-toggle { flex-basis: 42px; min-width: 42px; width: 42px; height: 42px; min-height: 42px; max-height: 42px; padding: 0; }
   .mobile-menu-label { display: none; }
   .mobile-appbar-brand img { width: 27px; height: 27px; }
   .mobile-appbar-brand strong { font-size: 14px; }
