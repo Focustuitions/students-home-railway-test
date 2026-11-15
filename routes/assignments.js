@@ -184,9 +184,15 @@ router.post('/batch', (req, res) => {
   const yearId = resolveYearId(body.academic_year_id);
   const getStudent = db.prepare(`SELECT admission_no, name, class, division FROM students
     WHERE UPPER(admission_no) = ? AND academic_year_id = ? AND COALESCE(status, 'Active') <> 'Withdrawn'`);
+  // Link admin-assigned work to the Teacher Portal account with the same name.
+  // Keep the link null when no unique active account exists; the admin register
+  // continues to work for staff who do not use the Teacher Portal.
+  const linkedTeacherAccounts = db.prepare(`SELECT id FROM teacher_portal_accounts
+    WHERE is_active = 1 AND LOWER(TRIM(name)) = LOWER(TRIM(?)) ORDER BY id LIMIT 2`).all(meta.teacherName);
+  const teacherAccountId = linkedTeacherAccounts.length === 1 ? linkedTeacherAccounts[0].id : null;
   const insert = db.prepare(`INSERT INTO student_assignments
-    (admission_no, student_name, student_class, student_division, assignment_type, subject, teacher_name, given_date, due_date, submission_status, details, academic_year_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)`);
+    (admission_no, student_name, student_class, student_division, assignment_type, subject, teacher_name, teacher_account_id, given_date, due_date, submission_status, details, academic_year_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?)`);
   try {
     const result = db.transaction(() => {
       const saved = [];
@@ -194,7 +200,7 @@ router.post('/batch', (req, res) => {
         const student = getStudent.get(admissionNo, yearId);
         if (!student || String(student.class) !== meta.cls || String(student.division).toUpperCase() !== meta.division.toUpperCase()) throw new Error(`Student ${admissionNo} is no longer active in the selected class and division. Preview again.`);
         if (isDuplicate({ yearId, admissionNo: student.admission_no, meta })) throw new Error(`An assignment for ${student.admission_no} was already recorded. Preview again.`);
-        const id = insert.run(student.admission_no, student.name, student.class, student.division, meta.type, meta.subject, meta.teacherName, meta.givenDate, meta.dueDate, meta.details, yearId).lastInsertRowid;
+        const id = insert.run(student.admission_no, student.name, student.class, student.division, meta.type, meta.subject, meta.teacherName, teacherAccountId, meta.givenDate, meta.dueDate, meta.details, yearId).lastInsertRowid;
         saved.push({ id, admission_no: student.admission_no, student_name: student.name });
       }
       return saved;

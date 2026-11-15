@@ -24,3 +24,8 @@ Teachers can only access students in assigned classes and subjects assigned to t
 
 ## Database changes
 The app creates `teacher_portal_accounts`, `teacher_portal_sessions`, and `teacher_login_attempts` automatically. It adds `teacher_account_id` to `student_assignments` to keep each teacher's recent activity associated with their account. Existing student, fee, payment, test and assignment records are preserved. Keep the existing `DB_PATH` unchanged.
+## Shared imposition submission tracking
+- Impositions assigned by Admin are linked to the matching active Teacher Portal account when the teacher name resolves uniquely.
+- Teacher Portal lists the impositions explicitly linked to that teacher account by Admin, along with older unlinked records that uniquely match the teacher name within the teacher's permitted classes and subjects.
+- Teachers can mark an imposition Submitted or return it to Pending from the Teacher Portal. Admin can do the same in Impositions & Assignments.
+- Both portals update the same `student_assignments` row, so status, submitted date and submitted-by value remain synchronized. No database migration is required.

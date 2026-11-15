@@ -60,8 +60,9 @@ function findStudentsForToken(token, cls, division, yearId) {
 function isDuplicateImposition({ yearId, admissionNo, subject, teacher, givenDate, details }) {
   return !!db.prepare(`SELECT id FROM student_assignments
     WHERE academic_year_id = ? AND admission_no = ? AND assignment_type = 'Imposition'
-      AND subject = ? AND teacher_account_id = ? AND given_date = ? AND LOWER(details) = LOWER(?) LIMIT 1`)
-    .get(yearId, admissionNo, subject, teacher.id, givenDate, details);
+      AND subject = ? AND (teacher_account_id = ? OR (teacher_account_id IS NULL AND LOWER(TRIM(teacher_name)) = LOWER(TRIM(?))))
+      AND given_date = ? AND LOWER(details) = LOWER(?) LIMIT 1`)
+    .get(yearId, admissionNo, subject, teacher.id, teacher.name, givenDate, details);
 }
 
 router.get('/me', (req, res) => {
@@ -204,13 +205,64 @@ router.post('/impositions', (req, res) => {
   res.status(201).json({ message: 'Imposition recorded.', record });
 });
 
+// List both teacher-entered and admin-assigned impositions for this teacher.
+// Class and subject permissions remain enforced here, including for admin-created work.
 router.get('/impositions', (req, res) => {
   const yearId = resolveYearId(req.query.academic_year_id);
+  const classes = (req.teacher.classes || []).map(String);
+  const subjects = (req.teacher.subjects || []).map(String);
+  if (!classes.length || !subjects.length) return res.json([]);
+  const classSlots = classes.map(() => '?').join(',');
+  const subjectSlots = subjects.map(() => '?').join(',');
   const rows = db.prepare(`SELECT * FROM student_assignments
-    WHERE academic_year_id = ? AND assignment_type = 'Imposition' AND teacher_account_id = ?
-    ORDER BY given_date DESC, id DESC LIMIT 200`)
-    .all(yearId, req.teacher.id);
+    WHERE academic_year_id = ? AND assignment_type = 'Imposition'
+      AND (teacher_account_id = ? OR (
+        teacher_account_id IS NULL AND LOWER(TRIM(teacher_name)) = LOWER(TRIM(?))
+        AND student_class IN (${classSlots}) AND subject IN (${subjectSlots})
+        AND (SELECT COUNT(*) FROM teacher_portal_accounts ta WHERE ta.is_active = 1
+          AND LOWER(TRIM(ta.name)) = LOWER(TRIM(student_assignments.teacher_name))) = 1
+      ))
+    ORDER BY given_date DESC, id DESC LIMIT 300`)
+    .all(yearId, req.teacher.id, req.teacher.name, ...classes, ...subjects);
   res.json(rows);
+});
+
+// Teachers can update submission status for impositions assigned to their account.
+// The same student_assignments row is used by the Admin Portal, so changes appear in both.
+router.patch('/impositions/:id/submission', (req, res) => {
+  const status = String((req.body && req.body.status) || '').trim();
+  if (!['Pending', 'Submitted'].includes(status)) {
+    return res.status(400).json({ error: 'Submission status must be Pending or Submitted.' });
+  }
+  const classes = (req.teacher.classes || []).map(String);
+  const subjects = (req.teacher.subjects || []).map(String);
+  const classSlots = classes.length ? classes.map(() => '?').join(',') : 'NULL';
+  const subjectSlots = subjects.length ? subjects.map(() => '?').join(',') : 'NULL';
+  const row = db.prepare(`SELECT id FROM student_assignments
+    WHERE id = ? AND assignment_type = 'Imposition'
+      AND (teacher_account_id = ? OR (
+        teacher_account_id IS NULL AND LOWER(TRIM(teacher_name)) = LOWER(TRIM(?))
+        AND student_class IN (${classSlots}) AND subject IN (${subjectSlots})
+        AND (SELECT COUNT(*) FROM teacher_portal_accounts ta WHERE ta.is_active = 1
+          AND LOWER(TRIM(ta.name)) = LOWER(TRIM(student_assignments.teacher_name))) = 1
+      ))`)
+    .get(req.params.id, req.teacher.id, req.teacher.name, ...classes, ...subjects);
+  if (!row) return res.status(404).json({ error: 'Imposition not found in your assignments.' });
+
+  if (status === 'Submitted') {
+    const submittedDate = validDate(req.body && req.body.submitted_date)
+      ? String(req.body.submitted_date).trim()
+      : new Date().toISOString().slice(0, 10);
+    db.prepare(`UPDATE student_assignments
+      SET submission_status = 'Submitted', submitted_date = ?, submitted_by = ? WHERE id = ?`)
+      .run(submittedDate, req.teacher.name, row.id);
+  } else {
+    db.prepare(`UPDATE student_assignments
+      SET submission_status = 'Pending', submitted_date = NULL, submitted_by = NULL WHERE id = ?`)
+      .run(row.id);
+  }
+  const updated = db.prepare('SELECT * FROM student_assignments WHERE id = ?').get(row.id);
+  res.json({ message: status === 'Submitted' ? 'Imposition marked as submitted.' : 'Imposition returned to pending.', imposition: updated });
 });
 
 module.exports = router;

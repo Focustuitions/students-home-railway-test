@@ -2230,11 +2230,11 @@ async function renderAssignments() {
   }
   function renderRegister() {
     $('#as-list-count').textContent = `${records.length} record(s) shown`;
-    $('#as-register').innerHTML = records.length ? `<table><thead><tr><th>Given Date</th><th>Due Date</th><th>Status</th><th>Type</th><th>Admission No.</th><th>Student</th><th>Class &amp; Div.</th><th>Subject</th><th>Teacher</th><th>Work Details</th><th>Submission Date</th><th>Action</th></tr></thead><tbody>${records.map(r => `
+    $('#as-register').innerHTML = records.length ? `<table><thead><tr><th>Given Date</th><th>Due Date</th><th>Status</th><th>Type</th><th>Admission No.</th><th>Student</th><th>Class &amp; Div.</th><th>Subject</th><th>Teacher</th><th>Work Details</th><th>Submission Date</th><th>Submitted By</th><th>Action</th></tr></thead><tbody>${records.map(r => `
       <tr><td>${escape(r.given_date)}</td><td>${escape(r.due_date || '—')}</td><td>${statusBadge(r.submission_status || 'Pending', r.due_date)}</td>
       <td>${escape(r.assignment_type)}</td><td class="mono">${escape(r.admission_no)}</td><td>${escape(r.student_name)}</td>
       <td>${escape(r.student_class)} - ${escape(r.student_division)}</td><td>${escape(r.subject)}</td><td>${escape(r.teacher_name)}</td>
-      <td>${escape(r.details || '—')}</td><td>${escape(r.submitted_date || '—')}</td><td class="as-row-actions">${actionButton(r)} <button class="btn-icon" data-as-delete="${r.id}">Delete</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><p>No assignment records match these filters.</p></div>';
+      <td>${escape(r.details || '—')}</td><td>${escape(r.submitted_date || '—')}</td><td>${escape(r.submitted_by || '—')}</td><td class="as-row-actions">${actionButton(r)} <button class="btn-icon" data-as-delete="${r.id}">Delete</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><p>No assignment records match these filters.</p></div>';
     bindSubmissionButtons($('#as-register'));
     $$('[data-as-delete]', $('#as-register')).forEach(btn => btn.addEventListener('click', async () => {
       const row = records.find(r => String(r.id) === btn.dataset.asDelete);
@@ -2361,6 +2361,12 @@ async function renderAssignments() {
   $('#as-confirm').addEventListener('click', confirmBatch);
   $('#as-clear').addEventListener('click', clearForm);
   $('#as-refresh-pending').addEventListener('click', () => refreshAssignments().catch(err => toast(err.message, true)));
+  $('#as-refresh-register').addEventListener('click', async () => {
+    const btn = $('#as-refresh-register'); btn.disabled = true;
+    try { await refreshAssignments(); toast('Assignment and imposition statuses refreshed.'); }
+    catch (err) { toast(err.message, true); }
+    finally { btn.disabled = false; }
+  });
   $('#as-export-pending').addEventListener('click', () => {
     if (!pendingRecords.length) { toast('There are no pending assignments to export.', true); return; }
     const params = new URLSearchParams(); if (currentYearId) params.set('academic_year_id', currentYearId);
