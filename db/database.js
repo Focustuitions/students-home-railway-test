@@ -340,7 +340,7 @@ for (const [subject, names] of Object.entries(defaultAssignmentTeachers)) {
 }
 
 // Teacher Portal accounts are separate from payroll/timetable teacher profiles.
-// Passwords are stored as bcrypt hashes; initial credentials are issued once by Admin.
+// Teacher login passwords are four-digit numeric values stored as bcrypt hashes; Admin issues them at account creation/reset.
 db.exec(`
 CREATE TABLE IF NOT EXISTS teacher_portal_accounts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -349,7 +349,7 @@ CREATE TABLE IF NOT EXISTS teacher_portal_accounts (
   subjects_json TEXT NOT NULL DEFAULT '[]',
   classes_json TEXT NOT NULL DEFAULT '[]',
   password_hash TEXT NOT NULL,
-  must_change_password INTEGER NOT NULL DEFAULT 1,
+  must_change_password INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))

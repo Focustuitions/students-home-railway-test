@@ -1298,15 +1298,15 @@ async function renderTeacherPortalAccounts() {
     credentialBox.classList.add('hidden'); credentialBox.innerHTML = '';
     setSelected('tpa-subject', []); setSelected('tpa-class', []);
   }
-  function showTemporaryPassword(code, password, message) {
+  function showTeacherPassword(code, password, message) {
     credentialBox.classList.remove('hidden');
     credentialBox.innerHTML = `<strong>${escape(message)}</strong>
       <div class="tpa-credential-line"><span>Teacher Code</span><code>${escape(code)}</code></div>
-      <div class="tpa-credential-line"><span>Temporary PIN</span><code id="tpa-temp-password">${escape(password)}</code></div>
-      <p>Share these credentials privately. The teacher must set a private password at first login.</p>
+      <div class="tpa-credential-line"><span>4-Digit Password</span><code id="tpa-teacher-password">${escape(password)}</code></div>
+      <p>Share these credentials privately. This four-digit password remains active until it is reset by Admin.</p>
       <button type="button" class="btn btn-ghost btn-small" id="tpa-copy-credentials">Copy Credentials</button>`;
     $('#tpa-copy-credentials').addEventListener('click', async () => {
-      const text = `Teacher Code: ${code}\nTemporary PIN: ${password}`;
+      const text = `Teacher Code: ${code}\n4-Digit Password: ${password}`;
       try { await navigator.clipboard.writeText(text); toast('Credentials copied.'); }
       catch { toast('Select and copy the credentials manually.', true); }
     });
@@ -1319,7 +1319,7 @@ async function renderTeacherPortalAccounts() {
       ${accounts.map(a => `<tr>
         <td><strong>${escape(a.name)}</strong></td><td class="mono">${escape(a.teacher_code)}</td>
         <td>${escape(a.subjects.join(', '))}</td><td>${escape(a.classes.map(c => 'Class ' + c).join(', '))}</td>
-        <td>${a.is_active ? '<span class="tag paid">Active</span>' : '<span class="tag due">Inactive</span>'}${a.must_change_password ? '<br><small class="hint">Password change pending</small>' : ''}</td>
+        <td>${a.is_active ? '<span class="tag paid">Active</span>' : '<span class="tag due">Inactive</span>'}${a.must_change_password ? '<br><small class="hint">4-digit password setup pending</small>' : ''}</td>
         <td class="tpa-actions"><button type="button" class="btn-icon" data-tpa-edit="${a.id}">Edit</button>
         <button type="button" class="btn-icon" data-tpa-reset="${a.id}">Reset Password</button>
         <button type="button" class="btn-icon" data-tpa-status="${a.id}" data-active="${a.is_active ? 1 : 0}">${a.is_active ? 'Deactivate' : 'Activate'}</button></td>
@@ -1340,11 +1340,11 @@ async function renderTeacherPortalAccounts() {
     }));
     $$('[data-tpa-reset]').forEach(btn => btn.addEventListener('click', async () => {
       const a = accounts.find(x => String(x.id) === btn.dataset.tpaReset);
-      if (!a || !confirm(`Generate a new temporary PIN for ${a.name} (${a.teacher_code})? Their current sessions will be signed out.`)) return;
+      if (!a || !confirm(`Generate a new 4-digit password for ${a.name} (${a.teacher_code})? Their current sessions will be signed out.`)) return;
       try {
         const result = await api(`/teacher-accounts/${a.id}/reset-password`, { method: 'POST', body: '{}' });
-        showTemporaryPassword(a.teacher_code, result.temporary_password, `New temporary PIN for ${a.name}`);
-        toast('Temporary PIN generated.'); await load();
+        showTeacherPassword(a.teacher_code, result.teacher_password, `New 4-digit password for ${a.name}`);
+        toast('New 4-digit password generated.'); await load();
       } catch (err) { toast(err.message, true); }
     }));
     $$('[data-tpa-status]').forEach(btn => btn.addEventListener('click', async () => {
@@ -1375,7 +1375,7 @@ async function renderTeacherPortalAccounts() {
         resetForm();
       } else {
         const result = await api('/teacher-accounts', { method: 'POST', body: JSON.stringify(data) });
-        showTemporaryPassword(data.teacher_code.toUpperCase(), result.temporary_password, `Login created for ${data.name}`);
+        showTeacherPassword(data.teacher_code.toUpperCase(), result.teacher_password, `4-digit password for ${data.name}`);
         toast('Teacher portal account created.');
         form.reset(); setSelected('tpa-subject', []); setSelected('tpa-class', []);
       }

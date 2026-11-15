@@ -17,11 +17,11 @@
   <p class="sub">Teacher Portal · Secure Sign In</p>
   <form id="login-form">
     <label class="field">Teacher Code<input id="teacher-code" autocomplete="username" required autofocus placeholder="Enter your Teacher Code"></label>
-    <label class="field">Password<input id="password" type="password" autocomplete="current-password" required placeholder="Enter your password"></label>
+    <label class="field">4-Digit Password<input id="password" type="password" inputmode="numeric" autocomplete="current-password" required placeholder="Enter your 4-digit password"></label>
     <div id="error" class="error" role="alert"></div>
     <button id="submit" type="submit">Sign In to Teacher Portal</button>
   </form>
-  <p class="hint">Use the Teacher Code and 4-digit temporary PIN provided by the Admin. You will be asked to create a private password on your first sign-in.</p>
+  <p class="hint">Use the Teacher Code and the 4-digit password provided by the Admin. Your 4-digit password remains your login password until the Admin resets it.</p>
   <div class="links"><a href="/login.html">Admin Portal</a> &nbsp;·&nbsp; <a href="/parent-login.html">Parent Portal</a></div>
 </main>
 <script>

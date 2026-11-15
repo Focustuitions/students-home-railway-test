@@ -4,8 +4,8 @@
 1. Sign in to the Admin Portal.
 2. Open **Teacher Portal Accounts**.
 3. Add the teacher name, a unique Teacher Code, one or more subjects, and one or more classes handled.
-4. Copy the generated 4-digit numeric temporary PIN and share it privately with the teacher. The temporary PIN is displayed only once; Admin can reset it to generate another one.
-5. Teachers sign in at `/teacher-login.html` using Teacher Code and temporary PIN, then set a private password (minimum 8 characters).
+4. Copy the generated 4-digit numeric password and share it privately with the teacher. It is displayed only when created or reset; Admin can reset it at any time.
+5. Teachers sign in at `/teacher-login.html` using their Teacher Code and 4-digit numeric password. No 8-character password change is required.
 
 ## Teacher workflow
 1. Open `/teacher-login.html`.
@@ -17,8 +17,8 @@ Teachers can only access students in assigned classes and subjects assigned to t
 
 ## Credentials and sessions
 - Teacher Code is the login ID.
-- A random 4-digit numeric temporary PIN is generated at account creation/reset and stored only as a bcrypt hash.
-- First sign-in requires a new password (at least 8 characters).
+- A random 4-digit numeric login password is generated at account creation/reset and stored only as a bcrypt hash.
+- Teacher passwords are exactly four numeric digits. Existing accounts with an older password can be moved to a 4-digit password by using Admin → Reset Password.
 - Teacher sessions are separate from Admin and Parent sessions and expire after 12 hours.
 - Admin can edit teacher permissions, reset passwords, or deactivate access.
 

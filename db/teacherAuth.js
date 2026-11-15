@@ -50,7 +50,7 @@ function requireTeacherAuth(req, res, next) {
   const teacher = getSessionTeacher(token);
   if (!teacher) return res.status(401).json({ error: 'Teacher login required' });
   if (teacher.must_change_password && !req.path.startsWith('/change-password')) {
-    return res.status(403).json({ error: 'Please change your temporary password before continuing.', code: 'MUST_CHANGE_PASSWORD' });
+    return res.status(403).json({ error: 'Please set your four-digit teacher password before continuing.', code: 'MUST_CHANGE_PASSWORD' });
   }
   req.teacher = teacher;
   next();

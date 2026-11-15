@@ -435,3 +435,9 @@ Late Arrival Work supports a mixed-class, mixed-division batch. Enter the late-a
 ## Bulk Submission Marking
 
 The Admin portals support preview-first bulk marking of Assignment and Late Arrival submissions. See `BULK_SUBMISSION_MARKING.md` for the due-date window, admission-number resolution, preview, and transactional submit workflow.
+
+
+### Teacher Portal password policy
+- Teacher Portal passwords are four-digit numeric passwords. Admin sees the password only when creating an account or resetting its password.
+- New accounts and reset accounts can sign in directly with the generated four-digit password; there is no forced eight-character password change.
+- To move a previously configured teacher account to a four-digit password, use **Teacher Portal Accounts → Reset Password**.

@@ -9,8 +9,8 @@ const SUBJECTS = ['English', 'Hindi', 'History', 'Geography', 'Physics', 'Chemis
 const cleanString = value => String(value || '').trim().replace(/\s+/g, ' ');
 const cleanCode = value => String(value || '').trim().toUpperCase().replace(/\s+/g, '');
 function parseArray(value) { try { const v = JSON.parse(value || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
-// Generate an easy-to-share four-digit numeric PIN for first-time sign-in.
-function generateTemporaryPassword() { return String(crypto.randomInt(1000, 10000)); }
+// Generate the teacher's four-digit numeric login password.
+function generateTeacherPassword() { return String(crypto.randomInt(1000, 10000)); }
 function normalizeLists(body) {
   const subjects = [...new Set((Array.isArray(body.subjects) ? body.subjects : []).map(cleanString).filter(Boolean))];
   const classes = [...new Set((Array.isArray(body.classes) ? body.classes : []).map(v => String(v).trim()).filter(Boolean))];
@@ -59,18 +59,18 @@ router.post('/', (req, res) => {
   if (!/^[A-Z0-9_-]{2,20}$/.test(teacherCode)) return res.status(400).json({ error: 'Teacher Code must be 2–20 letters, numbers, hyphens or underscores.' });
   const listError = validateLists(subjects, classes, yearId);
   if (listError) return res.status(400).json({ error: listError });
-  const temporaryPassword = generateTemporaryPassword();
-  const passwordHash = bcrypt.hashSync(temporaryPassword, 12);
+  const teacherPassword = generateTeacherPassword();
+  const passwordHash = bcrypt.hashSync(teacherPassword, 12);
   try {
     const result = db.transaction(() => {
       const created = db.prepare(`INSERT INTO teacher_portal_accounts
         (name, teacher_code, subjects_json, classes_json, password_hash, must_change_password, is_active)
-        VALUES (?, ?, ?, ?, ?, 1, 1)`)
+        VALUES (?, ?, ?, ?, ?, 0, 1)`)
         .run(name, teacherCode, JSON.stringify(subjects), JSON.stringify(classes), passwordHash);
       addTeacherToAssignmentRoster(name, subjects);
       return created;
     })();
-    res.status(201).json({ message: 'Teacher portal account created.', id: result.lastInsertRowid, temporary_password: temporaryPassword });
+    res.status(201).json({ message: 'Teacher portal account created with a four-digit password.', id: result.lastInsertRowid, teacher_password: teacherPassword });
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'This Teacher Code is already in use.' });
     console.error('Teacher account creation failed:', err);
@@ -110,11 +110,11 @@ router.put('/:id', (req, res) => {
 router.post('/:id/reset-password', (req, res) => {
   const existing = db.prepare('SELECT id FROM teacher_portal_accounts WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Teacher portal account not found.' });
-  const temporaryPassword = generateTemporaryPassword();
-  const passwordHash = bcrypt.hashSync(temporaryPassword, 12);
-  db.prepare(`UPDATE teacher_portal_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?`).run(passwordHash, req.params.id);
+  const teacherPassword = generateTeacherPassword();
+  const passwordHash = bcrypt.hashSync(teacherPassword, 12);
+  db.prepare(`UPDATE teacher_portal_accounts SET password_hash=?, must_change_password=0, updated_at=datetime('now') WHERE id=?`).run(passwordHash, req.params.id);
   db.prepare('DELETE FROM teacher_portal_sessions WHERE teacher_id = ?').run(req.params.id);
-  res.json({ message: 'Temporary PIN generated. The teacher must set a private password after signing in.', temporary_password: temporaryPassword });
+  res.json({ message: 'A new four-digit teacher password has been generated.', teacher_password: teacherPassword });
 });
 
 router.post('/:id/status', (req, res) => {
