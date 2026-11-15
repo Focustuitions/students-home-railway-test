@@ -1302,11 +1302,11 @@ async function renderTeacherPortalAccounts() {
     credentialBox.classList.remove('hidden');
     credentialBox.innerHTML = `<strong>${escape(message)}</strong>
       <div class="tpa-credential-line"><span>Teacher Code</span><code>${escape(code)}</code></div>
-      <div class="tpa-credential-line"><span>Temporary Password</span><code id="tpa-temp-password">${escape(password)}</code></div>
-      <p>Share these credentials privately. The teacher must change the temporary password at first login.</p>
+      <div class="tpa-credential-line"><span>Temporary PIN</span><code id="tpa-temp-password">${escape(password)}</code></div>
+      <p>Share these credentials privately. The teacher must set a private password at first login.</p>
       <button type="button" class="btn btn-ghost btn-small" id="tpa-copy-credentials">Copy Credentials</button>`;
     $('#tpa-copy-credentials').addEventListener('click', async () => {
-      const text = `Teacher Code: ${code}\nTemporary Password: ${password}`;
+      const text = `Teacher Code: ${code}\nTemporary PIN: ${password}`;
       try { await navigator.clipboard.writeText(text); toast('Credentials copied.'); }
       catch { toast('Select and copy the credentials manually.', true); }
     });
@@ -1340,11 +1340,11 @@ async function renderTeacherPortalAccounts() {
     }));
     $$('[data-tpa-reset]').forEach(btn => btn.addEventListener('click', async () => {
       const a = accounts.find(x => String(x.id) === btn.dataset.tpaReset);
-      if (!a || !confirm(`Generate a new temporary password for ${a.name} (${a.teacher_code})? Their current sessions will be signed out.`)) return;
+      if (!a || !confirm(`Generate a new temporary PIN for ${a.name} (${a.teacher_code})? Their current sessions will be signed out.`)) return;
       try {
         const result = await api(`/teacher-accounts/${a.id}/reset-password`, { method: 'POST', body: '{}' });
-        showTemporaryPassword(a.teacher_code, result.temporary_password, `New temporary password for ${a.name}`);
-        toast('Temporary password generated.'); await load();
+        showTemporaryPassword(a.teacher_code, result.temporary_password, `New temporary PIN for ${a.name}`);
+        toast('Temporary PIN generated.'); await load();
       } catch (err) { toast(err.message, true); }
     }));
     $$('[data-tpa-status]').forEach(btn => btn.addEventListener('click', async () => {

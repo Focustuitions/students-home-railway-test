@@ -9,7 +9,8 @@ const SUBJECTS = ['English', 'Hindi', 'History', 'Geography', 'Physics', 'Chemis
 const cleanString = value => String(value || '').trim().replace(/\s+/g, ' ');
 const cleanCode = value => String(value || '').trim().toUpperCase().replace(/\s+/g, '');
 function parseArray(value) { try { const v = JSON.parse(value || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
-function generateTemporaryPassword() { return crypto.randomBytes(9).toString('base64url'); }
+// Generate an easy-to-share four-digit numeric PIN for first-time sign-in.
+function generateTemporaryPassword() { return String(crypto.randomInt(1000, 10000)); }
 function normalizeLists(body) {
   const subjects = [...new Set((Array.isArray(body.subjects) ? body.subjects : []).map(cleanString).filter(Boolean))];
   const classes = [...new Set((Array.isArray(body.classes) ? body.classes : []).map(v => String(v).trim()).filter(Boolean))];
@@ -113,7 +114,7 @@ router.post('/:id/reset-password', (req, res) => {
   const passwordHash = bcrypt.hashSync(temporaryPassword, 12);
   db.prepare(`UPDATE teacher_portal_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?`).run(passwordHash, req.params.id);
   db.prepare('DELETE FROM teacher_portal_sessions WHERE teacher_id = ?').run(req.params.id);
-  res.json({ message: 'Temporary password generated. The teacher must change it after signing in.', temporary_password: temporaryPassword });
+  res.json({ message: 'Temporary PIN generated. The teacher must set a private password after signing in.', temporary_password: temporaryPassword });
 });
 
 router.post('/:id/status', (req, res) => {
