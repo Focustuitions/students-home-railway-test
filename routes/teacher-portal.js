@@ -265,4 +265,40 @@ router.patch('/impositions/:id/submission', (req, res) => {
   res.json({ message: status === 'Submitted' ? 'Imposition marked as submitted.' : 'Imposition returned to pending.', imposition: updated });
 });
 
+
+// Teachers may delete only imposition entries visible to their own account.
+// Deletion removes the shared student_assignments row, so it disappears from Admin too.
+router.delete('/impositions/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid imposition record ID.' });
+  }
+
+  const classes = (req.teacher.classes || []).map(String);
+  const subjects = (req.teacher.subjects || []).map(String);
+  const classSlots = classes.length ? classes.map(() => '?').join(',') : 'NULL';
+  const subjectSlots = subjects.length ? subjects.map(() => '?').join(',') : 'NULL';
+  const row = db.prepare(`SELECT id, admission_no, student_name, submission_status
+    FROM student_assignments
+    WHERE id = ? AND assignment_type = 'Imposition'
+      AND (teacher_account_id = ? OR (
+        teacher_account_id IS NULL AND LOWER(TRIM(teacher_name)) = LOWER(TRIM(?))
+        AND student_class IN (${classSlots}) AND subject IN (${subjectSlots})
+        AND (SELECT COUNT(*) FROM teacher_portal_accounts ta WHERE ta.is_active = 1
+          AND LOWER(TRIM(ta.name)) = LOWER(TRIM(student_assignments.teacher_name))) = 1
+      ))`)
+    .get(id, req.teacher.id, req.teacher.name, ...classes, ...subjects);
+
+  if (!row) return res.status(404).json({ error: 'Imposition not found in your assignments.' });
+
+  const result = db.prepare(`DELETE FROM student_assignments
+    WHERE id = ? AND assignment_type = 'Imposition'`).run(row.id);
+  if (!result.changes) return res.status(404).json({ error: 'Imposition entry could not be found.' });
+
+  res.json({
+    message: 'Imposition entry deleted. It has also been removed from the Admin Portal.',
+    deleted: { id: row.id, admission_no: row.admission_no, student_name: row.student_name },
+  });
+});
+
 module.exports = router;

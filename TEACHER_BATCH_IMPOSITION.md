@@ -24,3 +24,8 @@ Admission-number rules: Class 10 accepts a minimum 3-digit numeric prefix; Class
 - Teacher Portal lists the impositions explicitly linked to that teacher account by Admin, along with older unlinked records that uniquely match the teacher name within the teacher's permitted classes and subjects.
 - Teachers can mark an imposition Submitted or return it to Pending from the Teacher Portal. Admin can do the same in Impositions & Assignments.
 - Both portals update the same `student_assignments` row, so status, submitted date and submitted-by value remain synchronized. No database migration is required.
+
+## Imposition entry deletion
+- Admins can delete individual imposition rows from Admin → Impositions & Assignments.
+- Teachers can delete individual imposition rows assigned to their account from Teacher Portal → Assigned Impositions & Submissions. The teacher-side server route enforces the same account/class/subject ownership scope used for status updates.
+- Deletion requires confirmation, including student, class, subject, date and current submission status. It permanently removes that shared `student_assignments` row from both portals. No database migration is required.

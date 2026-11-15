@@ -192,10 +192,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  const mobileNav = $('#app-sidebar');
+  const mobileNavToggle = $('#mobile-nav-toggle');
+  const mobileNavBackdrop = $('#mobile-nav-backdrop');
+  const setMobileNavOpen = isOpen => {
+    if (!mobileNav || !mobileNavToggle || !mobileNavBackdrop) return;
+    mobileNav.classList.toggle('is-open', isOpen);
+    document.body.classList.toggle('nav-open', isOpen);
+    mobileNavToggle.setAttribute('aria-expanded', String(isOpen));
+    mobileNavToggle.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
+    mobileNavBackdrop.setAttribute('aria-hidden', String(!isOpen));
+  };
+  mobileNavToggle?.addEventListener('click', () => {
+    setMobileNavOpen(!mobileNav?.classList.contains('is-open'));
+  });
+  mobileNavBackdrop?.addEventListener('click', () => setMobileNavOpen(false));
+  mobileNav?.addEventListener('click', event => {
+    if (event.target.closest('.tab')) setMobileNavOpen(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') setMobileNavOpen(false);
+  });
+
   document.body.addEventListener('click', e => {
     const btn = e.target.closest('[data-route]');
     if (btn) {
       location.hash = btn.dataset.route;
+      setMobileNavOpen(false);
     }
   });
   $('#year-switcher').addEventListener('change', e => switchAcademicYear(e.target.value));

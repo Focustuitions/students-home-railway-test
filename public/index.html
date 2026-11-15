@@ -8,11 +8,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css" />
 <link rel="icon" type="image/png" href="/images/logo-mark.png" />
+
+<link rel="stylesheet" href="/css/mobile.css" />
 </head>
 <body>
 
 <div class="app">
-  <aside class="spine">
+  <header class="mobile-appbar" id="mobile-appbar">
+    <button type="button" class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation" aria-controls="app-sidebar" aria-expanded="false">
+      <span aria-hidden="true">☰</span><span class="mobile-menu-label">Menu</span>
+    </button>
+    <div class="mobile-appbar-brand"><img src="/images/logo-mark.png" alt="" /><strong>Students' Home</strong></div>
+    <span class="mobile-appbar-caption">Institution Manager</span>
+  </header>
+  <aside class="spine" id="app-sidebar">
     <div class="spine-brand">
       <img src="/images/logo-mark.png" alt="Students' Home logo" class="brand-logo" />
       <div class="brand-text">
@@ -63,6 +72,8 @@
       </div>
     </div>
   </aside>
+
+  <div class="mobile-nav-backdrop" id="mobile-nav-backdrop" aria-hidden="true"></div>
 
   <main class="ledger">
     <div id="toast" class="toast"></div>
