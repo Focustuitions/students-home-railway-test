@@ -330,3 +330,18 @@ button, [role="button"] { touch-action: manipulation; }
 @media print {
   .mobile-appbar, .mobile-nav-backdrop { display: none !important; }
 }
+
+/* Weekly Tests register: stacked filters and swipeable results on phones. */
+@media (max-width: 760px) {
+  .wt-register-head { align-items:stretch; flex-direction:column; gap:9px; }
+  .wt-register-head .btn { width:100%; justify-content:center; }
+  .wt-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .wt-filter-field { font-size:10px; }
+  .wt-filter-field input,.wt-filter-field select { height:46px; min-height:46px; font-size:16px; }
+  .wt-filter-field:first-child { grid-column:1 / -1; }
+  #wt-list table { min-width:900px; }
+}
+@media (max-width: 420px) {
+  .wt-filter-grid { grid-template-columns:minmax(0,1fr); }
+  .wt-filter-field:first-child { grid-column:auto; }
+}

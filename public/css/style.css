@@ -1077,3 +1077,20 @@ table.tt-grid thead th:last-child { border-top-right-radius: var(--radius-sm); }
   .bulk-preview-head .btn { width:100%; justify-content:center; }
   .bulk-preview-panel { padding:10px; }
 }
+
+/* Weekly Tests register search and combined filters. */
+.wt-register-card { margin-bottom: 22px; }
+.wt-register-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:15px; }
+.wt-register-head h2 { margin:0; padding:0; border:0; }
+.wt-register-head .hint { margin:5px 0 0; font-size:12px; }
+.wt-filter-grid { display:grid; grid-template-columns:minmax(220px,1.8fr) repeat(3,minmax(140px,1fr)); gap:11px; margin-bottom:16px; }
+.wt-filter-field { display:flex; flex-direction:column; gap:6px; min-width:0; color:var(--text-mute); font-size:11px; font-weight:700; }
+.wt-filter-field > span { letter-spacing:.25px; }
+.wt-filter-field input,.wt-filter-field select { width:100%; min-width:0; height:42px; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--text); font:500 13px var(--font-body); }
+.wt-filter-field input:focus,.wt-filter-field select:focus { outline:3px solid rgba(4,165,167,.13); border-color:var(--teal); }
+#wt-list table { min-width:840px; }
+#wt-list .wt-row-actions { min-width:220px; white-space:normal; }
+#wt-list .wt-row-actions .btn-icon { margin:2px 7px 2px 0; }
+.wt-filter-empty { padding:30px 16px; text-align:center; border:1px dashed var(--line); border-radius:10px; background:var(--paper); }
+.wt-filter-empty strong { display:block; color:var(--navy); font-family:var(--font-display); font-size:16px; }
+.wt-filter-empty p { margin:6px 0 0; color:var(--text-mute); font-size:12px; }

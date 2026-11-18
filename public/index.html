@@ -6,10 +6,10 @@
 <title>Students' Home &mdash; Institution Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css" />
+<link rel="stylesheet" href="/css/style.css?v=weekly-tests-filters-1" />
 <link rel="icon" type="image/png" href="/images/logo-mark.png" />
 
-<link rel="stylesheet" href="/css/mobile.css?v=mobile-header-fix-1" />
+<link rel="stylesheet" href="/css/mobile.css?v=weekly-tests-filters-1" />
 </head>
 <body>
 
@@ -954,7 +954,34 @@
       <button class="btn btn-primary" data-route="import">+ Import Marks</button>
     </div>
   </header>
-  <div class="table-wrap" id="wt-list"></div>
+  <section class="card wt-register-card">
+    <div class="wt-register-head">
+      <div>
+        <h2>Weekly Test Register</h2>
+        <p class="hint" id="wt-register-count" aria-live="polite">Loading weekly tests…</p>
+      </div>
+      <button type="button" class="btn btn-ghost btn-small" id="wt-clear-filters">Clear Filters</button>
+    </div>
+    <div class="wt-filter-grid" role="search" aria-label="Search and filter weekly tests">
+      <label class="wt-filter-field">
+        <span>Search tests</span>
+        <input type="search" id="wt-filter-search" placeholder="Test, topic, subject or date…" autocomplete="off" />
+      </label>
+      <label class="wt-filter-field">
+        <span>Class</span>
+        <select id="wt-filter-class"><option value="">All Classes</option></select>
+      </label>
+      <label class="wt-filter-field">
+        <span>Subject</span>
+        <select id="wt-filter-subject"><option value="">All Subjects</option></select>
+      </label>
+      <label class="wt-filter-field">
+        <span>Month</span>
+        <select id="wt-filter-month"><option value="">All Months</option></select>
+      </label>
+    </div>
+    <div class="table-wrap" id="wt-list"></div>
+  </section>
 
   <div class="card">
     <div class="card-head-row">
@@ -1215,6 +1242,6 @@
 </template>
 
 <div id="fee-slip-print" aria-hidden="true"></div>
-<script src="/js/app.js"></script>
+<script src="/js/app.js?v=weekly-tests-filters-1"></script>
 </body>
 </html>

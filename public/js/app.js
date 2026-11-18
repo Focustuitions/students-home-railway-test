@@ -2648,39 +2648,117 @@ async function renderWeeklyTests() {
   useTemplate('#tpl-weekly-tests');
   const tests = await api('/weekly-tests' + yearQS());
 
-  $('#wt-list').innerHTML = tests.length ? `
-    <table>
-      <thead><tr><th>Date</th><th>Exam</th><th>Class</th><th>Present</th><th>Absent</th><th>Average</th><th>Pass Rate</th><th>Entry Status</th><th></th></tr></thead>
-      <tbody>${tests.map(t => {
-        const avgPct = t.average != null ? Math.round((t.average / t.max_marks) * 1000) / 10 : null;
-        return `<tr>
-          <td>${t.test_date}</td>
-          <td>${t.subject ? `${t.subject}${t.topic ? ' — ' + t.topic : ''}` : t.exam_name}</td>
-          <td>${t.class ? `Class ${t.class}` : '—'}</td>
-          <td>${t.presentCount}</td>
-          <td>${t.absentCount > 0 ? `<span class="tag due">${t.absentCount}</span>` : '0'}</td>
-          <td>${t.average} / ${t.max_marks}${avgPct !== null ? ` <span class="mono" style="color:var(--text-mute);">(${avgPct}%)</span>` : ''}</td>
-          <td>${t.passRate}%</td>
-          <td><span class="tag ${t.entry_status === 'in_progress' ? 'due' : ''}">${t.entry_status === 'in_progress' ? 'In Progress' : 'Finished'}</span></td>
-          <td>
-            <button class="btn-icon" data-resume-entry="${t.id}">${t.entry_status === 'in_progress' ? 'Resume Entry' : 'Open / Edit Marks'}</button>
-            <a href="/weekly-test-report.html?id=${t.id}" target="_blank" rel="noopener" class="btn-icon">Report</a>
-            <button class="btn-icon" data-del="${t.id}">Remove</button>
-          </td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>` : `<div class="empty-state"><img src="/images/mascot-main.png" alt="Nubo" /><p>No weekly tests imported yet for this academic year. Head to Import Data to add marks.</p></div>`;
+  const uniqueValues = values => [...new Set(values.map(v => String(v ?? '').trim()).filter(Boolean))];
+  const classValues = uniqueValues(tests.map(t => t.class)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  const subjectValues = uniqueValues(tests.map(t => t.subject || t.exam_name)).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
-  $$('[data-resume-entry]').forEach(btn => btn.addEventListener('click', () => {
-    location.hash = `mark-entry/${encodeURIComponent(btn.dataset.resumeEntry)}`;
-  }));
+  const monthKey = value => {
+    const raw = String(value ?? '').trim();
+    const iso = raw.match(/^(\d{4})-(\d{1,2})/);
+    if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}`;
+    const dmy = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}`;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? '' : `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const monthLabel = key => {
+    const [year, month] = key.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  };
+  const monthValues = uniqueValues(tests.map(t => monthKey(t.test_date))).sort((a, b) => b.localeCompare(a));
 
-  $$('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('Delete this weekly test and all its marks? This cannot be undone.')) return;
-    await api('/weekly-tests/' + btn.dataset.del, { method: 'DELETE' });
-    toast('Weekly test deleted.');
-    renderWeeklyTests();
-  }));
+  $('#wt-filter-class').innerHTML = '<option value="">All Classes</option>' + classValues.map(v => `<option value="${escapeImportHtml(v)}">Class ${escapeImportHtml(v)}</option>`).join('');
+  $('#wt-filter-subject').innerHTML = '<option value="">All Subjects</option>' + subjectValues.map(v => `<option value="${escapeImportHtml(v)}">${escapeImportHtml(v)}</option>`).join('');
+  $('#wt-filter-month').innerHTML = '<option value="">All Months</option>' + monthValues.map(v => `<option value="${escapeImportHtml(v)}">${escapeImportHtml(monthLabel(v))}</option>`).join('');
+
+  function renderTestList() {
+    const search = $('#wt-filter-search').value.trim().toLocaleLowerCase();
+    const classFilter = $('#wt-filter-class').value;
+    const subjectFilter = $('#wt-filter-subject').value;
+    const monthFilter = $('#wt-filter-month').value;
+
+    const filtered = tests.filter(t => {
+      const testClass = String(t.class ?? '').trim();
+      const testSubject = String(t.subject || t.exam_name || '').trim();
+      if (classFilter && testClass !== classFilter) return false;
+      if (subjectFilter && testSubject !== subjectFilter) return false;
+      if (monthFilter && monthKey(t.test_date) !== monthFilter) return false;
+      if (search) {
+        const haystack = [t.test_date, t.exam_name, t.subject, t.topic, t.class, t.max_marks]
+          .map(v => String(v ?? '')).join(' ').toLocaleLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    $('#wt-register-count').textContent = filtered.length === tests.length
+      ? `${tests.length} test${tests.length === 1 ? '' : 's'} in this academic year`
+      : `Showing ${filtered.length} of ${tests.length} tests`;
+
+    $('#wt-list').innerHTML = filtered.length ? `
+      <table>
+        <thead><tr><th>Date</th><th>Exam</th><th>Class</th><th>Present</th><th>Absent</th><th>Average</th><th>Pass Rate</th><th>Entry Status</th><th>Actions</th></tr></thead>
+        <tbody>${filtered.map(t => {
+          const avgPct = t.average != null ? Math.round((t.average / t.max_marks) * 1000) / 10 : null;
+          const testId = Number(t.id);
+          const dateText = escapeImportHtml(t.test_date);
+          const examText = t.subject
+            ? `${escapeImportHtml(t.subject)}${t.topic ? ' — ' + escapeImportHtml(t.topic) : ''}`
+            : escapeImportHtml(t.exam_name);
+          const classText = t.class ? `Class ${escapeImportHtml(t.class)}` : '—';
+          return `<tr>
+            <td>${dateText}</td>
+            <td>${examText}</td>
+            <td>${classText}</td>
+            <td>${Number(t.presentCount) || 0}</td>
+            <td>${Number(t.absentCount) > 0 ? `<span class="tag due">${Number(t.absentCount)}</span>` : '0'}</td>
+            <td>${Number(t.average) || 0} / ${Number(t.max_marks) || 0}${avgPct !== null ? ` <span class="mono" style="color:var(--text-mute);">(${avgPct}%)</span>` : ''}</td>
+            <td>${Number(t.passRate) || 0}%</td>
+            <td><span class="tag ${t.entry_status === 'in_progress' ? 'due' : ''}">${t.entry_status === 'in_progress' ? 'In Progress' : 'Finished'}</span></td>
+            <td class="wt-row-actions">
+              <button type="button" class="btn-icon" data-resume-entry="${testId}">${t.entry_status === 'in_progress' ? 'Resume Entry' : 'Open / Edit Marks'}</button>
+              <a href="/weekly-test-report.html?id=${testId}" target="_blank" rel="noopener" class="btn-icon">Report</a>
+              <button type="button" class="btn-icon" data-del="${testId}">Remove</button>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>` : tests.length ? `
+        <div class="wt-filter-empty">
+          <strong>No matching weekly tests</strong>
+          <p>Try changing the search text or clearing one or more filters.</p>
+        </div>` : `<div class="empty-state"><img src="/images/mascot-main.png" alt="Nubo" /><p>No weekly tests imported yet for this academic year. Head to Import Data to add marks.</p></div>`;
+
+    $$('[data-resume-entry]').forEach(btn => btn.addEventListener('click', () => {
+      location.hash = `mark-entry/${encodeURIComponent(btn.dataset.resumeEntry)}`;
+    }));
+
+    $$('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('Delete this weekly test and all its marks? This cannot be undone.')) return;
+      try {
+        btn.disabled = true;
+        await api('/weekly-tests/' + btn.dataset.del, { method: 'DELETE' });
+        toast('Weekly test deleted.');
+        renderWeeklyTests();
+      } catch (err) {
+        btn.disabled = false;
+        toast(err.message || 'Unable to delete weekly test.', true);
+      }
+    }));
+  }
+
+  ['wt-filter-search', 'wt-filter-class', 'wt-filter-subject', 'wt-filter-month'].forEach(id => {
+    const element = $('#' + id);
+    element.addEventListener(id === 'wt-filter-search' ? 'input' : 'change', renderTestList);
+  });
+  $('#wt-clear-filters').addEventListener('click', () => {
+    $('#wt-filter-search').value = '';
+    $('#wt-filter-class').value = '';
+    $('#wt-filter-subject').value = '';
+    $('#wt-filter-month').value = '';
+    renderTestList();
+    $('#wt-filter-search').focus();
+  });
+  renderTestList();
 
   async function loadTopPerformers() {
     const limit = $('#wt-top-limit').value;
