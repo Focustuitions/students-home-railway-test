@@ -193,6 +193,26 @@ db.prepare('UPDATE students SET academic_year_id = ? WHERE academic_year_id IS N
 db.prepare('UPDATE classes SET academic_year_id = ? WHERE academic_year_id IS NULL').run(currentYear.id);
 db.prepare('UPDATE timetable SET academic_year_id = ? WHERE academic_year_id IS NULL').run(currentYear.id);
 
+// Daily student attendance imported from the institution's absent-report workbook.
+// One row is stored for every active student on each imported date, with the
+// absent list applied first and all remaining active students marked Present.
+db.exec(`
+CREATE TABLE IF NOT EXISTS attendance_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  attendance_date TEXT NOT NULL,
+  admission_no TEXT NOT NULL,
+  academic_year_id INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('Present', 'Absent')),
+  source TEXT NOT NULL DEFAULT 'Manual',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(attendance_date, admission_no, academic_year_id),
+  FOREIGN KEY (admission_no) REFERENCES students(admission_no) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_date_year ON attendance_records(attendance_date, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_admission ON attendance_records(admission_no, attendance_date);
+`);
+
 // Weekly test marks
 db.exec(`
 CREATE TABLE IF NOT EXISTS weekly_tests (

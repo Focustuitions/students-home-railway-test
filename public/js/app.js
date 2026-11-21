@@ -150,6 +150,7 @@ const routes = {
   'teacher-accounts': renderTeacherPortalAccounts,
   timetable: renderTimetable,
   'mark-entry': renderMarkEntry,
+  attendance: renderAttendance,
   assignments: renderAssignments,
   'late-arrival-work': renderLateArrivalWork,
   'weekly-tests': renderWeeklyTests,
@@ -2631,6 +2632,247 @@ async function renderLateArrivalWork() {
     window.location.href = '/api/late-arrivals/export?' + params.toString();
   });
   await refresh();
+}
+
+// =====================================================================
+// ATTENDANCE — upload the absent report and mark the remaining active
+// students Present for every date represented in the report.
+// =====================================================================
+async function renderAttendance() {
+  useTemplate('#tpl-attendance');
+
+  const fileInput = $('#attendance-file');
+  const fileName = $('#attendance-file-name');
+  const fileHelp = $('#attendance-file-help');
+  const previewBtn = $('#attendance-preview-btn');
+  const applyBtn = $('#attendance-apply-btn');
+  const previewPanel = $('#attendance-preview-panel');
+  const detailPanel = $('#attendance-detail-panel');
+  const filterDate = $('#attendance-filter-date');
+  const filterClass = $('#attendance-filter-class');
+  const filterDivision = $('#attendance-filter-division');
+  let selectedFile = null;
+  let previewData = null;
+  let summaryRows = [];
+  let visibleSummaryRows = [];
+  let selectedGroup = null;
+  let detailRows = [];
+
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+  const formatDate = value => {
+    const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : String(value || '—');
+  };
+  const yearQuery = () => currentYearId ? `academic_year_id=${encodeURIComponent(currentYearId)}` : '';
+  const setUploadStatus = (message, isError = false) => {
+    const el = $('#attendance-upload-status');
+    el.textContent = message;
+    el.classList.toggle('is-error', isError);
+  };
+
+  function clearPreview() {
+    previewData = null;
+    previewPanel.classList.add('hidden');
+    applyBtn.disabled = true;
+    $('#attendance-preview-summary').innerHTML = '';
+    $('#attendance-preview-alerts').innerHTML = '';
+    $('#attendance-preview-groups').innerHTML = '';
+    $('#attendance-preview-absentees').innerHTML = '';
+  }
+
+  function renderPreview(data) {
+    previewData = data;
+    previewPanel.classList.remove('hidden');
+    const dates = (data.summary || []).map(item => formatDate(item.date));
+    $('#attendance-preview-caption').textContent = data.report_range
+      ? `Report period: ${data.report_range}`
+      : `Attendance dates detected: ${dates.join(', ') || 'None'}`;
+    $('#attendance-preview-summary').innerHTML = [
+      ['Attendance dates', (data.summary || []).length],
+      ['Active students / date', data.roster_count || 0],
+      ['Absent students', data.absent_count || 0],
+      ['To mark Present', data.present_count || 0]
+    ].map(([label, value]) => `<div class="attendance-kpi"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+
+    const alerts = [];
+    if (data.errors?.length) {
+      alerts.push(`<div class="attendance-alert attendance-alert-error"><strong>${data.errors.length} issue(s) must be resolved</strong><ul>${data.errors.map(item => `<li>${esc(item)}</li>`).join('')}</ul></div>`);
+    }
+    if (data.warnings?.length) {
+      alerts.push(`<div class="attendance-alert attendance-alert-warning"><strong>Check these name differences</strong><ul>${data.warnings.map(item => `<li>${esc(item)}</li>`).join('')}</ul></div>`);
+    }
+    if (data.skipped_rows?.length) {
+      alerts.push(`<div class="attendance-alert attendance-alert-info">${data.skipped_rows.length} row(s) not marked Absent were ignored.</div>`);
+    }
+    if (!alerts.length) alerts.push('<div class="attendance-alert attendance-alert-success">All reported absent Admission Numbers match the selected academic year and class/division.</div>');
+    $('#attendance-preview-alerts').innerHTML = alerts.join('');
+
+    $('#attendance-preview-groups').innerHTML = data.summary?.length ? `
+      <table><thead><tr><th>Attendance Date</th><th>Active Students</th><th>Absent</th><th>Present</th><th>Classes / Divisions in Report</th></tr></thead><tbody>
+        ${data.summary.map(row => `<tr><td>${esc(formatDate(row.date))}</td><td>${esc(row.total_students)}</td><td><strong class="attendance-absent-text">${esc(row.absent)}</strong></td><td><strong class="attendance-present-text">${esc(row.present)}</strong></td><td>${esc((row.class_divisions || []).join(', '))}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="empty-state">No valid attendance dates were detected.</p>';
+
+    $('#attendance-preview-absentees').innerHTML = data.matched_absentees?.length ? `
+      <table><thead><tr><th>Date</th><th>Class</th><th>Admission Number</th><th>Student Name</th></tr></thead><tbody>
+        ${data.matched_absentees.map(row => `<tr><td>${esc(formatDate(row.date))}</td><td>${esc(row.class)}-${esc(row.division)}</td><td class="mono">${esc(row.admission_no)}</td><td>${esc(row.student_name)}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="empty-state">No matched absent students to display.</p>';
+
+    applyBtn.disabled = !data.can_apply;
+    $('#attendance-apply-hint').textContent = data.can_apply
+      ? `Saving will create or update ${data.record_count} attendance records. Any existing records for these dates will be updated.`
+      : 'Resolve all blocking issues, then select the file and preview it again.';
+    setUploadStatus(data.can_apply ? 'Preview ready. Review the totals before saving.' : 'Preview has blocking issues. Attendance has not been changed.', !data.can_apply);
+  }
+
+  async function loadSummary() {
+    const response = await api('/attendance/summary' + yearQS());
+    summaryRows = response.rows || [];
+    const classes = [...new Set(summaryRows.map(row => String(row.class || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    const priorClass = filterClass.value;
+    filterClass.innerHTML = '<option value="">All classes</option>' + classes.map(value => `<option value="${esc(value)}">Class ${esc(value)}</option>`).join('');
+    if (classes.includes(priorClass)) filterClass.value = priorClass;
+    updateDivisionOptions();
+    renderSummary();
+  }
+
+  function updateDivisionOptions() {
+    const classValue = filterClass.value;
+    const rows = summaryRows.filter(row => !classValue || String(row.class) === classValue);
+    const divisions = [...new Set(rows.map(row => String(row.division || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    const previous = filterDivision.value;
+    filterDivision.innerHTML = '<option value="">All divisions</option>' + divisions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('');
+    if (divisions.includes(previous)) filterDivision.value = previous;
+  }
+
+  function renderSummary() {
+    visibleSummaryRows = summaryRows.filter(row =>
+      (!filterDate.value || row.date === filterDate.value) &&
+      (!filterClass.value || String(row.class) === filterClass.value) &&
+      (!filterDivision.value || String(row.division) === filterDivision.value)
+    );
+    $('#attendance-register-count').textContent = `${visibleSummaryRows.length} class/division attendance record(s) across ${new Set(visibleSummaryRows.map(row => row.date)).size} date(s).`;
+    $('#attendance-summary-list').innerHTML = visibleSummaryRows.length ? `
+      <table><thead><tr><th>Date</th><th>Class</th><th>Division</th><th>Present</th><th>Absent</th><th>Total</th><th></th></tr></thead><tbody>
+        ${visibleSummaryRows.map((row, index) => `<tr><td>${esc(formatDate(row.date))}</td><td>${esc(row.class)}</td><td>${esc(row.division)}</td><td><strong class="attendance-present-text">${esc(row.present)}</strong></td><td><strong class="attendance-absent-text">${esc(row.absent)}</strong></td><td>${esc(row.total_students)}</td><td><button type="button" class="btn btn-ghost btn-small" data-attendance-view="${index}">View</button></td></tr>`).join('')}
+      </tbody></table>` : '<p class="empty-state">No attendance records match these filters. Upload an absent report to create attendance.</p>';
+    $$('[data-attendance-view]').forEach(button => button.addEventListener('click', () => {
+      const row = visibleSummaryRows[Number(button.dataset.attendanceView)];
+      if (row) openDetails(row);
+    }));
+  }
+
+  async function openDetails(group) {
+    selectedGroup = group;
+    detailPanel.classList.remove('hidden');
+    $('#attendance-detail-title').textContent = `Class ${group.class} - ${group.division}`;
+    $('#attendance-detail-caption').textContent = `${formatDate(group.date)} · ${group.present} Present · ${group.absent} Absent · ${group.total_students} Students`;
+    $('#attendance-detail-status').value = '';
+    $('#attendance-detail-search').value = '';
+    const params = new URLSearchParams({ date: group.date, class: group.class, division: group.division });
+    if (currentYearId) params.set('academic_year_id', currentYearId);
+    const response = await api('/attendance/records?' + params.toString());
+    detailRows = response.rows || [];
+    renderDetails();
+    detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderDetails() {
+    const status = $('#attendance-detail-status').value;
+    const query = $('#attendance-detail-search').value.trim().toLowerCase();
+    const rows = detailRows.filter(row => (!status || row.status === status) &&
+      (!query || `${row.admission_no} ${row.student_name}`.toLowerCase().includes(query)));
+    $('#attendance-detail-list').innerHTML = rows.length ? `
+      <table><thead><tr><th>Admission Number</th><th>Student Name</th><th>Class</th><th>Status</th><th>Last Updated</th></tr></thead><tbody>
+        ${rows.map(row => `<tr><td class="mono">${esc(row.admission_no)}</td><td>${esc(row.student_name)}</td><td>${esc(row.class)}-${esc(row.division)}</td><td><span class="attendance-status ${row.status === 'Absent' ? 'is-absent' : 'is-present'}">${esc(row.status)}</span></td><td>${esc(row.updated_at || '—')}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="empty-state">No students match this detail filter.</p>';
+  }
+
+  fileInput.addEventListener('change', () => {
+    selectedFile = fileInput.files?.[0] || null;
+    fileName.textContent = selectedFile ? selectedFile.name : 'Choose absent-report Excel file';
+    fileHelp.textContent = selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB · ${selectedFile.type || 'Excel workbook'}` : 'The report’s Employee ID is matched with the website’s Admission Number.';
+    previewBtn.disabled = !selectedFile;
+    clearPreview();
+    setUploadStatus(selectedFile ? 'File selected. Preview it to check student matching.' : 'Select an absent report to begin.');
+  });
+
+  previewBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    previewBtn.disabled = true;
+    setUploadStatus('Reading workbook and matching students…');
+    try {
+      const result = await apiUpload('/attendance/preview', selectedFile, { academic_year_id: currentYearId || '' });
+      renderPreview(result);
+    } catch (error) {
+      setUploadStatus(error.message, true);
+      toast(error.message, true);
+    } finally {
+      previewBtn.disabled = !selectedFile;
+    }
+  });
+
+  applyBtn.addEventListener('click', async () => {
+    if (!selectedFile || !previewData?.can_apply) return;
+    const dateText = previewData.summary.map(row => formatDate(row.date)).join(', ');
+    const confirmed = confirm(
+      `Save attendance for ${dateText}?\n\n` +
+      `${previewData.absent_count} listed absentees will be marked Absent. ` +
+      `All other active students in the selected academic year will be marked Present.\n\n` +
+      `${previewData.record_count} attendance records will be created or updated. Existing records for these dates may be replaced. Continue?`
+    );
+    if (!confirmed) return;
+    applyBtn.disabled = true;
+    setUploadStatus('Saving attendance records…');
+    try {
+      const result = await apiUpload('/attendance/apply', selectedFile, { academic_year_id: currentYearId || '' });
+      toast(`Attendance saved: ${result.absent_saved} Absent and ${result.present_saved} Present record(s).`);
+      fileInput.value = '';
+      selectedFile = null;
+      fileName.textContent = 'Choose absent-report Excel file';
+      fileHelp.textContent = 'The report’s Employee ID is matched with the website’s Admission Number.';
+      previewBtn.disabled = true;
+      clearPreview();
+      setUploadStatus(`Saved for ${result.dates.map(formatDate).join(', ')}.`);
+      await loadSummary();
+    } catch (error) {
+      toast(error.message, true);
+      setUploadStatus(error.message, true);
+      applyBtn.disabled = !previewData?.can_apply;
+    }
+  });
+
+  $('#attendance-reset-btn').addEventListener('click', () => {
+    fileInput.value = '';
+    selectedFile = null;
+    fileName.textContent = 'Choose absent-report Excel file';
+    fileHelp.textContent = 'The report’s Employee ID is matched with the website’s Admission Number.';
+    previewBtn.disabled = true;
+    clearPreview();
+    setUploadStatus('Select an absent report to begin.');
+  });
+  [filterDate, filterClass, filterDivision].forEach(element => element.addEventListener('change', () => {
+    if (element === filterClass) updateDivisionOptions();
+    renderSummary();
+  }));
+  $('#attendance-filter-clear').addEventListener('click', () => {
+    filterDate.value = ''; filterClass.value = ''; updateDivisionOptions(); filterDivision.value = '';
+    renderSummary();
+  });
+  $('#attendance-refresh-btn').addEventListener('click', () => loadSummary().catch(error => toast(error.message, true)));
+  $('#attendance-detail-status').addEventListener('change', renderDetails);
+  $('#attendance-detail-search').addEventListener('input', renderDetails);
+  $('#attendance-export-btn').addEventListener('click', () => {
+    if (!selectedGroup) return;
+    const params = new URLSearchParams({ date: selectedGroup.date, class: selectedGroup.class, division: selectedGroup.division });
+    if (currentYearId) params.set('academic_year_id', currentYearId);
+    window.location.href = `/api/attendance/export?${params.toString()}`;
+  });
+
+  await loadSummary();
 }
 
 // =====================================================================

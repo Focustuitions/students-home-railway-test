@@ -39,6 +39,7 @@ app.use('/api/classes', require('./routes/classes'));
 app.use('/api/academic-years', require('./routes/academic-years'));
 app.use('/api/weekly-tests', require('./routes/weekly-tests'));
 app.use('/api/mark-entry', require('./routes/mark-entry'));
+app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/late-arrivals', require('./routes/late-arrivals'));
 app.use('/api/term-exams', require('./routes/term-exams'));

@@ -441,3 +441,5 @@ The Admin portals support preview-first bulk marking of Assignment and Late Arri
 - Teacher Portal passwords are four-digit numeric passwords. Admin sees the password only when creating an account or resetting its password.
 - New accounts and reset accounts can sign in directly with the generated four-digit password; there is no forced eight-character password change.
 - To move a previously configured teacher account to a four-digit password, use **Teacher Portal Accounts → Reset Password**.
+
+- **Attendance:** upload the institution absent-report Excel file, preview admission-number matches, then mark listed students Absent and all remaining active students Present for the report dates. See `ATTENDANCE_ABSENT_REPORT_IMPORT.md`.
