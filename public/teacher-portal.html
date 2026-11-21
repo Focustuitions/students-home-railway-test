@@ -104,18 +104,19 @@ async function loadRecords(){try{
   $('#record-count').textContent=`${rows.length} assigned imposition record(s)`;
   const statusBadge=r=>r.submission_status==='Submitted'?'<span class="preview-status ready">Submitted</span>':'<span class="preview-status warn">Pending</span>';
   const actionButton=r=>r.submission_status==='Submitted'
-    ?`<button class="btn btn-ghost" type="button" data-imposition-pending="${Number(r.id)}">Mark Pending</button>`
+    ?`<button class="btn btn-ghost" type="button" data-imposition-reverse="${Number(r.id)}">Reverse</button>`
     :`<button class="btn" type="button" data-imposition-submitted="${Number(r.id)}">Mark Submitted</button>`;
   const deleteButton=r=>`<button class="btn btn-ghost" type="button" data-imposition-delete="${Number(r.id)}" style="color:var(--red);border-color:#f1c7ce">Delete</button>`;
   $('#records').innerHTML=rows.length?`<table><thead><tr><th>Given Date</th><th>Due Date</th><th>Admission No.</th><th>Student</th><th>Class</th><th>Subject</th><th>Work Details</th><th>Status</th><th>Submitted Date</th><th>Submitted By</th><th>Action</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.given_date)}</td><td>${esc(r.due_date||'—')}</td><td class="mono">${esc(r.admission_no)}</td><td>${esc(r.student_name)}</td><td>${esc(r.student_class)}-${esc(r.student_division)}</td><td>${esc(r.subject)}</td><td>${esc(r.details||'—')}</td><td>${statusBadge(r)}</td><td>${esc(r.submitted_date||'—')}</td><td>${esc(r.submitted_by||'—')}</td><td>${actionButton(r)} ${deleteButton(r)}</td></tr>`).join('')}</tbody></table>`:'<p class="empty">No impositions are currently assigned to you.</p>';
-  $('#records').querySelectorAll('[data-imposition-submitted], [data-imposition-pending]').forEach(btn=>btn.addEventListener('click',async()=>{
-    const id=btn.dataset.impositionSubmitted||btn.dataset.impositionPending;
-    const nextStatus=btn.dataset.impositionSubmitted?'Submitted':'Pending';
-    const prompt=nextStatus==='Submitted'?'Mark this imposition as submitted?':'Return this imposition to Pending?';
+  $('#records').querySelectorAll('[data-imposition-submitted], [data-imposition-reverse]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const isSubmit=Boolean(btn.dataset.impositionSubmitted);
+    const id=isSubmit?btn.dataset.impositionSubmitted:btn.dataset.impositionReverse;
+    const nextStatus=isSubmit?'Submitted':'Pending';
+    const prompt=isSubmit?'Confirm this imposition has been submitted?':'Reverse this submission and return the imposition to Pending?';
     if(!window.confirm(prompt))return;
     btn.disabled=true;
     try{
-      const result=await api(`/impositions/${encodeURIComponent(id)}/submission`,{method:'PATCH',body:JSON.stringify({status:nextStatus,submitted_date:nextStatus==='Submitted'?todayLocal():null})});
+      const result=await api(`/impositions/${encodeURIComponent(id)}/submission`,{method:'PATCH',body:JSON.stringify({status:nextStatus,submitted_date:isSubmit?todayLocal():null})});
       setStatus(result.message||'Imposition submission status updated.');
       await loadRecords();
     }catch(err){setStatus(err.message,true);btn.disabled=false}

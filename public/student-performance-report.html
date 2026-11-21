@@ -305,6 +305,8 @@ function render(r) {
 
     ${r.hotSeat && r.hotSeat.sessionCount > 0 ? renderHotSeatSection(r.hotSeat) : ''}
 
+    ${renderAttendanceSection(r.attendanceRecords || [], r.attendanceSummary || {})}
+
     ${renderStudentWorkSection(r.assignments || [], r.lateArrivalWorks || [])}
 
     <p class="section-title">Full Test History</p>
@@ -351,6 +353,30 @@ function workStatusBadge(row) {
   return row.due_date && row.due_date < today
     ? '<span class="status-pill status-fail">Overdue</span>'
     : '<span class="status-pill status-absent">Pending</span>';
+}
+
+
+function renderAttendanceSection(records, summary) {
+  const s = summary || {};
+  const percentage = s.percentage == null ? '—' : `${reportText(s.percentage)}%`;
+  const rows = records.map(row => `<tr>
+    <td>${reportText(row.attendance_date || '—')}</td>
+    <td>${row.status === 'Absent' ? '<span class="status-pill status-absent">Absent</span>' : '<span class="status-pill status-pass">Present</span>'}</td>
+    <td>${reportText(row.source || '—')}</td>
+  </tr>`).join('');
+  return `
+    <p class="section-title">Attendance Record</p>
+    <div class="stat-grid" style="margin-bottom:4mm;">
+      <div class="stat-card"><div class="l">Recorded Days</div><div class="v">${Number(s.total || 0)}</div></div>
+      <div class="stat-card good"><div class="l">Present</div><div class="v">${Number(s.present || 0)}</div></div>
+      <div class="stat-card warn"><div class="l">Absent</div><div class="v">${Number(s.absent || 0)}</div></div>
+      <div class="stat-card"><div class="l">Attendance</div><div class="v">${percentage}</div></div>
+    </div>
+    ${records.length ? `
+      <table class="marks-table" style="margin-bottom:8mm;">
+        <thead><tr><th>Date</th><th>Attendance</th><th>Record Source</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : '<div class="remark-box">No daily attendance records have been uploaded for this academic year yet.</div>'}`;
 }
 
 function renderStudentWorkSection(assignments, lateArrivalWorks) {

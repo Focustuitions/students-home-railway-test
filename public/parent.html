@@ -58,6 +58,14 @@
   .mono { font-variant-numeric:tabular-nums; white-space:nowrap; }
   .empty { text-align:center; color:var(--mute); font-size:12.5px; padding:19px 10px; }
   .pill { display:inline-block; border-radius:20px; background:#E8F7F6; color:var(--teal-deep); font-size:10.5px; font-weight:700; padding:4px 8px; white-space:nowrap; }
+  .pill.present,.pill.submitted { background:#EAF8F1; color:#176B4A; }
+  .pill.absent,.pill.overdue { background:#FFF0F4; color:#A92050; }
+  .pill.pending { background:#FFF7E8; color:#8A5C0C; }
+  .attendance-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:0 0 14px; }
+  .attendance-metric { background:#F5F6FA; border:1px solid var(--line); border-radius:8px; padding:12px; min-width:0; }
+  .attendance-metric .k { color:var(--mute); text-transform:uppercase; letter-spacing:.4px; font-size:9.5px; font-weight:800; }
+  .attendance-metric .v { color:var(--navy); font:800 20px 'Baloo 2',sans-serif; margin-top:3px; }
+  .attendance-note { color:var(--mute); font-size:11px; margin:9px 0 0; }
   .danger { color:#A92050; }
   .loading,.top-error { text-align:center; background:#fff; border:1px solid var(--line); border-radius:11px; padding:30px 20px; color:var(--mute); }
   .top-error { color:#921C42; background:#FFF5F8; border-color:#F1CAD7; }
@@ -71,7 +79,7 @@
   .form-error { color:#921C42; background:#FFF5F8; border:1px solid #F1CAD7; border-radius:7px; padding:9px 11px; font-size:12px; margin-top:12px; }
   .form-success { color:#176B4A; background:#EDFAF4; border:1px solid #BDE8D4; border-radius:7px; padding:9px 11px; font-size:12px; margin-top:12px; }
   footer { color:var(--mute); text-align:center; font-size:11px; padding:0 20px 26px; }
-  @media(max-width:760px) { header { padding:14px 16px; } .brand img.mascot { display:none; } .brand-title { font-size:18px; } .welcome { align-items:flex-start; flex-direction:column; padding:18px; } .welcome-actions { width:100%; justify-content:flex-start; } .stats { grid-template-columns:1fr; gap:9px; } .stat { display:flex; align-items:center; justify-content:space-between; padding:13px 15px; gap:12px; } .stat .value { font-size:20px; margin-top:0; text-align:right; } .grid { grid-template-columns:1fr; gap:0; } .portal-links { grid-template-columns:1fr; gap:10px; } .portal-link { padding:16px; } main { margin-top:15px; padding:0 12px; } .card { padding:16px 13px; } .profile-grid { gap:12px; } h1 { font-size:24px; } }
+  @media(max-width:760px) { header { padding:14px 16px; } .brand img.mascot { display:none; } .brand-title { font-size:18px; } .welcome { align-items:flex-start; flex-direction:column; padding:18px; } .welcome-actions { width:100%; justify-content:flex-start; } .stats { grid-template-columns:1fr; gap:9px; } .stat { display:flex; align-items:center; justify-content:space-between; padding:13px 15px; gap:12px; } .stat .value { font-size:20px; margin-top:0; text-align:right; } .grid { grid-template-columns:1fr; gap:0; } .portal-links { grid-template-columns:1fr; gap:10px; } .portal-link { padding:16px; } main { margin-top:15px; padding:0 12px; } .card { padding:16px 13px; } .profile-grid { gap:12px; } .attendance-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } h1 { font-size:24px; } }
 </style>
 
 <link rel="stylesheet" href="/css/mobile.css" />
@@ -130,6 +138,23 @@
         <span style="display:flex;align-items:center;gap:8px"><span class="link-count" id="term-count">0</span><span class="arrow" aria-hidden="true">›</span></span>
       </a>
     </section>
+    <section class="card">
+      <h2>Assignment Details <span class="section-count" id="assignment-count">0</span></h2>
+      <p class="section-intro">Regular impositions and assignments set for your child, including submission status.</p>
+      <div id="assignments-table" class="table-wrap"></div>
+    </section>
+    <section class="card">
+      <h2>Late Arrival Additional Work <span class="section-count" id="late-work-count">0</span></h2>
+      <p class="section-intro">Additional work assigned after late arrival and its completion status.</p>
+      <div id="late-work-table" class="table-wrap"></div>
+    </section>
+    <section class="card">
+      <h2>Attendance Record</h2>
+      <p class="section-intro">Attendance summary and the latest recorded school days.</p>
+      <div id="attendance-summary" class="attendance-summary"></div>
+      <div id="attendance-table" class="table-wrap"></div>
+      <p id="attendance-note" class="attendance-note"></p>
+    </section>
     <section class="card"><h2>Teacher Observations</h2><div id="observations-table" class="table-wrap"></div></section>
   </div>
 </main>
@@ -146,6 +171,46 @@ function table(headers, rows, emptyText) {
 }
 function profileItem(label, value) {
   return `<div class="profile-item"><div class="k">${esc(label)}</div><div class="v">${esc(value || '—')}</div></div>`;
+}
+function submissionBadge(row) {
+  if ((row.submission_status || 'Pending') === 'Submitted') {
+    return `<span class="pill submitted">Submitted</span>${row.submitted_date ? `<br><small>${dateText(row.submitted_date)}</small>` : ''}`;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  return row.due_date && row.due_date < today
+    ? '<span class="pill overdue">Overdue</span>'
+    : '<span class="pill pending">Pending</span>';
+}
+function renderWorkRecords(data) {
+  const assignments = data.assignments || [];
+  const lateWorks = data.lateArrivalWorks || [];
+  $('assignment-count').textContent = assignments.length;
+  $('late-work-count').textContent = lateWorks.length;
+  $('assignments-table').innerHTML = table(
+    ['Given Date','Due Date','Work','Subject','Teacher','Submission'],
+    assignments.map(a => `<tr><td class="mono">${dateText(a.given_date)}</td><td class="mono">${dateText(a.due_date)}</td><td>${esc(a.assignment_type || 'Assignment')}${a.details ? `<br><small>${esc(a.details)}</small>` : ''}</td><td>${esc(a.subject || '—')}</td><td>${esc(a.teacher_name || '—')}</td><td>${submissionBadge(a)}</td></tr>`),
+    'No assignments have been recorded for this academic year.'
+  );
+  $('late-work-table').innerHTML = table(
+    ['Late Date','Due Date','Additional Work','Submission'],
+    lateWorks.map(a => `<tr><td class="mono">${dateText(a.late_date)}</td><td class="mono">${dateText(a.due_date)}</td><td>${esc(a.details || 'Additional work for late arrival')}</td><td>${submissionBadge(a)}</td></tr>`),
+    'No late-arrival additional work has been recorded.'
+  );
+}
+function renderAttendance(data) {
+  const summary = data.attendanceSummary || { total: 0, present: 0, absent: 0, percentage: null };
+  $('attendance-summary').innerHTML = [
+    ['Recorded Days', summary.total], ['Present', summary.present], ['Absent', summary.absent],
+    ['Attendance', summary.percentage == null ? '—' : `${summary.percentage}%`],
+  ].map(([label, value]) => `<div class="attendance-metric"><div class="k">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
+  const records = data.attendanceRecords || [];
+  const recent = records.slice(0, 20);
+  $('attendance-table').innerHTML = table(['Date','Status'], recent.map(row =>
+    `<tr><td class="mono">${dateText(row.attendance_date)}</td><td>${row.status === 'Absent' ? '<span class="pill absent">Absent</span>' : '<span class="pill present">Present</span>'}</td></tr>`
+  ), 'No attendance records have been uploaded yet.');
+  $('attendance-note').textContent = records.length > recent.length
+    ? `Showing the latest ${recent.length} of ${records.length} recorded days. The full attendance history is included in the Student Performance Sheet.`
+    : records.length ? 'The complete recorded attendance history is shown above.' : 'Attendance details will appear here after the institution uploads the absent report.';
 }
 function showError(message) {
   $('loading').classList.add('hidden');
@@ -190,6 +255,8 @@ function renderDashboard(data) {
   ), 'No fee payments are recorded yet.');
   $('weekly-count').textContent = data.weeklyTests.length;
   $('term-count').textContent = data.termExams.length;
+  renderWorkRecords(data);
+  renderAttendance(data);
   $('observations-table').innerHTML = table(['Date','Subject','Performance','Classroom Checklist'], data.observations.map(o => {
     const checks = [];
     if (o.notes_completed) checks.push('Notes complete');

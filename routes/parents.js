@@ -229,7 +229,7 @@ router.get('/dashboard', requireParentAuth, (req, res) => {
   }
   const admissionNo = req.parent.admission_no;
   const student = db.prepare(`
-    SELECT admission_no, name, class, division, medium, school, joining_date, total_fees, discount, net_fees, status
+    SELECT admission_no, name, class, division, medium, school, joining_date, total_fees, discount, net_fees, status, academic_year_id
     FROM students WHERE admission_no = ?
   `).get(admissionNo);
   if (!student) return res.status(404).json({ error: 'Student record not found.' });
@@ -257,6 +257,36 @@ router.get('/dashboard', requireParentAuth, (req, res) => {
     FROM hot_seats WHERE admission_no = ?
     ORDER BY date DESC, id DESC
   `).all(admissionNo);
+  const yearId = student.academic_year_id;
+  const assignments = db.prepare(`
+    SELECT assignment_type, subject, teacher_name, given_date, due_date,
+      submission_status, submitted_date, details
+    FROM student_assignments
+    WHERE admission_no = ? AND (academic_year_id = ? OR academic_year_id IS NULL)
+    ORDER BY given_date DESC, id DESC
+  `).all(admissionNo, yearId);
+  const lateArrivalWorks = db.prepare(`
+    SELECT late_date, due_date, details, submission_status, submitted_date
+    FROM late_arrival_works
+    WHERE admission_no = ? AND (academic_year_id = ? OR academic_year_id IS NULL)
+    ORDER BY late_date DESC, id DESC
+  `).all(admissionNo, yearId);
+  const attendanceRecords = db.prepare(`
+    SELECT attendance_date, status, source
+    FROM attendance_records
+    WHERE admission_no = ? AND academic_year_id = ?
+    ORDER BY attendance_date DESC, id DESC
+  `).all(admissionNo, yearId);
+  const attendancePresent = attendanceRecords.filter(row => row.status === 'Present').length;
+  const attendanceAbsent = attendanceRecords.filter(row => row.status === 'Absent').length;
+  const attendanceSummary = {
+    total: attendanceRecords.length,
+    present: attendancePresent,
+    absent: attendanceAbsent,
+    percentage: attendanceRecords.length
+      ? Math.round((attendancePresent / attendanceRecords.length) * 1000) / 10
+      : null,
+  };
 
   const paid = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   res.set('Cache-Control', 'no-store');
@@ -273,6 +303,10 @@ router.get('/dashboard', requireParentAuth, (req, res) => {
     weeklyTests,
     termExams,
     observations,
+    assignments,
+    lateArrivalWorks,
+    attendanceRecords,
+    attendanceSummary,
   });
 });
 
@@ -284,9 +318,11 @@ router.get('/performance-report', requireParentAuth, (req, res) => {
   if (req.parent.must_change_password) {
     return res.status(403).json({ error: 'Change your initial password before viewing student records.', mustChangePassword: true });
   }
+  const reportStudent = db.prepare('SELECT academic_year_id FROM students WHERE admission_no = ?').get(req.parent.admission_no);
+  if (!reportStudent) return res.status(404).json({ error: 'Student record not found.' });
   const reportReq = {
     params: { admission_no: req.parent.admission_no },
-    query: {},
+    query: { academic_year_id: reportStudent.academic_year_id },
   };
   const reportRes = {
     json(data) {

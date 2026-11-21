@@ -925,6 +925,11 @@ table.tt-grid thead th:last-child { border-top-right-radius: var(--radius-sm); }
 .as-preview-panel th, .as-pending-card th { position:sticky; top:0; z-index:1; background:#f3f7fa; color:#617087; font-size:10px; text-transform:uppercase; letter-spacing:.35px; }
 .as-preview-panel td, .as-preview-panel th, .as-pending-card td, .as-pending-card th { padding:9px 10px; border-bottom:1px solid #e9eef2; text-align:left; white-space:nowrap; font-size:11.5px; }
 .as-pending-card { border-top:3px solid #d99b42; }
+.as-history-card { border-top:3px solid #2c9b79; }
+.as-history-card .table-wrap table { width:100%; border-collapse:collapse; }
+.as-history-card .table-wrap th { background:#f1f8f5; color:#526f64; font-size:10px; text-transform:uppercase; letter-spacing:.35px; }
+.as-history-card .table-wrap td, .as-history-card .table-wrap th { padding:9px 10px; border-bottom:1px solid #e7efeb; text-align:left; white-space:nowrap; font-size:11.5px; }
+.as-history-card .btn { white-space:nowrap; }
 .as-pending-card .as-list-head { align-items:center; }
 .as-row-actions { display:flex; align-items:center; gap:7px; }
 .as-row-actions .btn { white-space:nowrap; }

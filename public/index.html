@@ -6,7 +6,7 @@
 <title>Students' Home &mdash; Institution Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css?v=attendance-upload-1" />
+<link rel="stylesheet" href="/css/style.css?v=assignment-history-reverse-1" />
 <link rel="icon" type="image/png" href="/images/logo-mark.png" />
 
 <link rel="stylesheet" href="/css/mobile.css?v=attendance-upload-1" />
@@ -817,10 +817,18 @@
 
   <section class="card as-pending-card">
     <div class="as-list-head">
-      <div><h2>Pending Submissions</h2><p id="as-pending-list-count" class="hint">Assignments awaiting submission.</p></div>
+      <div><h2>Assignment Pending</h2><p id="as-pending-list-count" class="hint">Assignments awaiting submission.</p></div>
       <div class="as-export-actions"><button class="btn btn-ghost btn-small" id="as-export-pending">Export Pending Report</button><button class="btn btn-ghost btn-small" id="as-refresh-pending">Refresh</button></div>
     </div>
     <div class="table-wrap" id="as-pending-register"></div>
+  </section>
+
+  <section class="card as-history-card">
+    <div class="as-list-head">
+      <div><h2>Assignment History</h2><p id="as-history-count" class="hint">Completed submissions appear here.</p></div>
+      <button class="btn btn-ghost btn-small" id="as-refresh-history">Refresh History</button>
+    </div>
+    <div class="table-wrap" id="as-history-register"></div>
   </section>
 
   <section class="card bulk-submission-card as-bulk-submission-card">
@@ -1321,6 +1329,6 @@
 </template>
 
 <div id="fee-slip-print" aria-hidden="true"></div>
-<script src="/js/app.js?v=attendance-upload-1"></script>
+<script src="/js/app.js?v=assignment-history-reverse-1"></script>
 </body>
 </html>

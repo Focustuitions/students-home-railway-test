@@ -2199,6 +2199,7 @@ async function renderAssignments() {
   let allYearRecords = [];
   let records = [];
   let pendingRecords = [];
+  let historyRecords = [];
   let busy = false;
 
   const escape = markEntryEscape;
@@ -2258,7 +2259,7 @@ async function renderAssignments() {
   }
   function actionButton(row) {
     return row.submission_status === 'Submitted'
-      ? `<button class="btn btn-ghost btn-small" data-as-pending="${row.id}">Mark Pending</button>`
+      ? `<button class="btn btn-ghost btn-small" data-as-reverse="${row.id}" title="Reverse this submission and return it to Pending">Reverse</button>`
       : `<button class="btn btn-primary btn-small" data-as-submitted="${row.id}">Mark Submitted</button>`;
   }
   function renderStats() {
@@ -2278,6 +2279,14 @@ async function renderAssignments() {
       <td>${escape(r.details || '—')}</td><td>${statusBadge('Pending', r.due_date)}</td><td>${actionButton(r)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><p>No pending assignments. All recorded work has been submitted.</p></div>';
     bindSubmissionButtons($('#as-pending-register'));
   }
+  function renderHistory() {
+    $('#as-history-count').textContent = `${historyRecords.length} submitted assignment(s) in history. Reverse a submission to return it to the Pending list.`;
+    $('#as-history-register').innerHTML = historyRecords.length ? `<table><thead><tr><th>Submitted Date</th><th>Admission No.</th><th>Student</th><th>Class &amp; Div.</th><th>Subject</th><th>Teacher</th><th>Work Details</th><th>Status</th><th>Submitted By</th><th>Action</th></tr></thead><tbody>${historyRecords.map(r => `
+      <tr><td>${escape(r.submitted_date || '—')}</td><td class="mono">${escape(r.admission_no)}</td><td>${escape(r.student_name)}</td>
+      <td>${escape(r.student_class)} - ${escape(r.student_division)}</td><td>${escape(r.subject)}</td><td>${escape(r.teacher_name)}</td>
+      <td>${escape(r.details || '—')}</td><td>${statusBadge('Submitted', r.due_date)}</td><td>${escape(r.submitted_by || '—')}</td><td>${actionButton(r)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><p>No submitted assignments yet. Completed submissions will appear here.</p></div>';
+    bindSubmissionButtons($('#as-history-register'));
+  }
   function renderRegister() {
     $('#as-list-count').textContent = `${records.length} record(s) shown`;
     $('#as-register').innerHTML = records.length ? `<table><thead><tr><th>Given Date</th><th>Due Date</th><th>Status</th><th>Type</th><th>Admission No.</th><th>Student</th><th>Class &amp; Div.</th><th>Subject</th><th>Teacher</th><th>Work Details</th><th>Submission Date</th><th>Submitted By</th><th>Action</th></tr></thead><tbody>${records.map(r => `
@@ -2294,15 +2303,18 @@ async function renderAssignments() {
     }));
   }
   function bindSubmissionButtons(root) {
-    $$('[data-as-submitted], [data-as-pending]', root).forEach(btn => btn.addEventListener('click', async () => {
-      const id = btn.dataset.asSubmitted || btn.dataset.asPending;
-      const nextStatus = btn.dataset.asSubmitted ? 'Submitted' : 'Pending';
-      if (nextStatus === 'Submitted' && !confirm('Mark this assignment as submitted?')) return;
-      if (nextStatus === 'Pending' && !confirm('Return this assignment to Pending?')) return;
+    $$('[data-as-submitted], [data-as-reverse]', root).forEach(btn => btn.addEventListener('click', async () => {
+      const isSubmit = Boolean(btn.dataset.asSubmitted);
+      const id = isSubmit ? btn.dataset.asSubmitted : btn.dataset.asReverse;
+      const nextStatus = isSubmit ? 'Submitted' : 'Pending';
+      const message = isSubmit
+        ? 'Confirm that this student has submitted the assignment? The record will move from Assignment Pending to Assignment History.'
+        : 'Reverse this submission? The record will be removed from Assignment History and returned to Assignment Pending.';
+      if (!confirm(message)) return;
       btn.disabled = true;
       try {
-        await api(`/assignments/${id}/submission`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus, submitted_date: nextStatus === 'Submitted' ? localDate() : null }) });
-        toast(nextStatus === 'Submitted' ? 'Submission recorded.' : 'Assignment marked pending.');
+        await api(`/assignments/${id}/submission`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus, submitted_date: isSubmit ? localDate() : null }) });
+        toast(isSubmit ? 'Marked Submitted and moved to Assignment History.' : 'Submission reversed and returned to Assignment Pending.');
         await refreshAssignments();
       } catch (err) { toast(err.message, true); btn.disabled = false; }
     }));
@@ -2319,7 +2331,8 @@ async function renderAssignments() {
   async function refreshAssignments() {
     const qs = queryYear();
     [allYearRecords, pendingRecords] = await Promise.all([api('/assignments' + qs), api('/assignments/pending' + qs)]);
-    renderStats(); renderPending(); await loadRegister();
+    historyRecords = allYearRecords.filter(r => (r.submission_status || 'Pending') === 'Submitted');
+    renderStats(); renderPending(); renderHistory(); await loadRegister();
   }
   function renderPreview(data) {
     previewData = data;
@@ -2411,6 +2424,7 @@ async function renderAssignments() {
   $('#as-confirm').addEventListener('click', confirmBatch);
   $('#as-clear').addEventListener('click', clearForm);
   $('#as-refresh-pending').addEventListener('click', () => refreshAssignments().catch(err => toast(err.message, true)));
+  $('#as-refresh-history').addEventListener('click', () => refreshAssignments().catch(err => toast(err.message, true)));
   $('#as-refresh-register').addEventListener('click', async () => {
     const btn = $('#as-refresh-register'); btn.disabled = true;
     try { await refreshAssignments(); toast('Assignment and imposition statuses refreshed.'); }

@@ -413,7 +413,7 @@ See [TEACHER_PORTAL.md](TEACHER_PORTAL.md) for how Admin creates teacher account
 Teachers can select a date, assigned class, division and subject, paste multiple Admission Numbers, preview matches and confirm the batch. Preview is read-only; confirmation revalidates permissions and student status and saves in one transaction. Class 10 supports 3-digit prefixes; Classes 8 and 9 support 4-digit prefixes. Ambiguous prefixes require full Admission Numbers. See `TEACHER_BATCH_IMPOSITION.md`.
 
 ### Admin Assignment Portal update
-The Assignment Portal now supports date/teacher/subject/class/division batch assignment, due-date selection (defaulting to one day after the given date), Admission Number preview and confirmation, Pending Submissions, marking individual assignments Submitted/Pending, and Excel exports with due/submission details. See `ADMIN_ASSIGNMENT_BATCH_AND_SUBMISSIONS.md`.
+The Assignment Portal now supports date/teacher/subject/class/division batch assignment, due-date selection (defaulting to one day after the given date), Admission Number preview and confirmation, separate Assignment Pending and Assignment History lists, marking items Submitted, and reversing a mistaken submission back to Pending. Submitted entries are removed from Pending and shown in History with a Reverse action. Excel exports include due/submission details. See `ADMIN_ASSIGNMENT_BATCH_AND_SUBMISSIONS.md`.
 
 
 ## Late Arrival Additional Work
@@ -424,7 +424,7 @@ Admin can record additional work for late arrivals in **Late Arrival Work**. Sel
 
 - Late Arrival Work has an **Export All Records (Excel)** button. It exports the rows matching the current Late Arrival register filters.
 - Pending Late Arrival Work has a separate **Export Pending Records** button. It exports unsubmitted work for the selected academic year; overdue rows are labelled Overdue.
-- Pending Submissions in the Assignment Portal has an **Export Pending Report** button. It exports unsubmitted assignments for the selected academic year; overdue rows are labelled Overdue.
+- Assignment Pending in the Assignment Portal has an **Export Pending Report** button. It exports unsubmitted assignments for the selected academic year; overdue rows are labelled Overdue.
 - The Assignment Register's existing Export Excel button remains available and respects its current filters.
 
 These report exports do not change student, assignment, late-arrival, or submission data. No database migration is required for this update.

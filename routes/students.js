@@ -322,16 +322,34 @@ function weeklyTestReportHandler(req, res) {
     SELECT assignment_type, subject, teacher_name, given_date, due_date,
       submission_status, submitted_date, details
     FROM student_assignments
-    WHERE admission_no = ? AND academic_year_id = ?
+    WHERE admission_no = ? AND (academic_year_id = ? OR academic_year_id IS NULL)
     ORDER BY given_date DESC, id DESC
   `).all(req.params.admission_no, yearId);
 
   const lateArrivalWorks = db.prepare(`
     SELECT late_date, due_date, submission_status, submitted_date, details
     FROM late_arrival_works
-    WHERE admission_no = ? AND academic_year_id = ?
+    WHERE admission_no = ? AND (academic_year_id = ? OR academic_year_id IS NULL)
     ORDER BY late_date DESC, id DESC
   `).all(req.params.admission_no, yearId);
+
+  // Daily attendance records for the same student and academic year.
+  const attendanceRecords = db.prepare(`
+    SELECT attendance_date, status, source
+    FROM attendance_records
+    WHERE admission_no = ? AND academic_year_id = ?
+    ORDER BY attendance_date DESC, id DESC
+  `).all(req.params.admission_no, yearId);
+  const attendancePresent = attendanceRecords.filter(row => row.status === 'Present').length;
+  const attendanceAbsent = attendanceRecords.filter(row => row.status === 'Absent').length;
+  const attendanceSummary = {
+    total: attendanceRecords.length,
+    present: attendancePresent,
+    absent: attendanceAbsent,
+    percentage: attendanceRecords.length
+      ? Math.round((attendancePresent / attendanceRecords.length) * 1000) / 10
+      : null,
+  };
 
   // Risk flags: a quick, scannable summary of anything that might need
   // attention, pulled from data already computed above.
@@ -369,6 +387,8 @@ function weeklyTestReportHandler(req, res) {
     termExams,
     assignments,
     lateArrivalWorks,
+    attendanceRecords,
+    attendanceSummary,
     crossAnalysis,
     riskFlags,
   });
